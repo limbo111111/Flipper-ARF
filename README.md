@@ -23,6 +23,74 @@ This project may incorporate, adapt, or build upon **other open-source projects*
 
 ---
 
+## Supported Systems
+
+### Automotive Protocols
+
+| Manufacturer | Protocol | Frequency | Modulation | Encoder | Decoder |
+|:---|:---|:---:|:---:|:---:|:---:|
+| VAG (VW/Audi/Skoda/Seat) | VAG GROUP | 433 MHz | AM | Yes | Yes |
+| Porsche | Cayenne | 433/868 MHz | AM | Yes | Yes |
+| PSA (Peugeot/Citroën/DS) | PSA GROUP | 433 MHz | FM | Yes | Yes |
+| Ford | Ford V0 | 433 MHz | FM | Yes | Yes |
+| Fiat | Fiat SpA | 433 MHz | FM | Yes | Yes |
+| Fiat | Fiat Mystery | 433 MHz | FM | No | Yes |
+| Subaru | Subaru | 433 MHz | AM | Yes | Yes |
+| Mazda | Siemens (5WK49365D) | 433 MHz | FM | Yes | Yes |
+| Kia/Hyundai | Kia V0 | 433 MHz | FM | Yes | Yes |
+| Kia/Hyundai | Kia V1 | 315/433 MHz | AM | Yes | Yes |
+| Kia/Hyundai | Kia V2 | 315/433 MHz | FM | Yes | Yes |
+| Kia/Hyundai | Kia V3/V4 | 315/433 MHz | AM/FM | Yes | Yes |
+| Kia/Hyundai | Kia V5 | 433 MHz | FM | Yes | Yes |
+| Kia/Hyundai | Kia V6 | 433 MHz | FM | Yes | Yes |
+| Suzuki | Suzuki | 433 MHz | AM | Yes | Yes |
+| Mitsubishi | Mitsubishi V0 | 868 MHz | FM | Yes | Yes |
+
+### Gate / Access Protocols
+
+| Protocol | Frequency | Modulation | Encoder | Decoder |
+|:---|:---:|:---:|:---:|:---:|
+| Keeloq | 433/868/315 MHz | AM | Yes | Yes |
+| Nice FLO | 433 MHz | AM | Yes | Yes |
+| Nice FloR-S | 433 MHz | AM | Yes | Yes |
+| CAME | 433/315 MHz | AM | Yes | Yes |
+| CAME TWEE | 433 MHz | AM | Yes | Yes |
+| CAME Atomo | 433 MHz | AM | Yes | Yes |
+| Faac SLH | 433/868 MHz | AM | Yes | Yes |
+| Somfy Telis | 433 MHz | AM | Yes | Yes |
+| Somfy Keytis | 433 MHz | AM | Yes | Yes |
+| Alutech AT-4N | 433 MHz | AM | Yes | Yes |
+| KingGates Stylo4k | 433 MHz | AM | Yes | Yes |
+| Beninca ARC | 433 MHz | AM | Yes | Yes |
+| Hormann HSM | 433/868 MHz | AM | Yes | Yes |
+| Marantec | 433 MHz | AM | Yes | Yes |
+| Marantec24 | 433 MHz | AM | Yes | Yes |
+
+### General Static Protocols
+
+| Protocol | Frequency | Modulation | Encoder | Decoder |
+|:---|:---:|:---:|:---:|:---:|
+| Princeton | 433/315 MHz | AM | Yes | Yes |
+| Linear | 315 MHz | AM | Yes | Yes |
+| LinearDelta3 | 315 MHz | AM | Yes | Yes |
+| GateTX | 433 MHz | AM | Yes | Yes |
+| Security+ 1.0 | 315 MHz | AM | Yes | Yes |
+| Security+ 2.0 | 315 MHz | AM | Yes | Yes |
+| Chamberlain Code | 315 MHz | AM | Yes | Yes |
+| MegaCode | 315 MHz | AM | Yes | Yes |
+| Mastercode | 433 MHz | AM | Yes | Yes |
+| Dickert MAHS | 433 MHz | AM | Yes | Yes |
+| SMC5326 | 433 MHz | AM | Yes | Yes |
+| Phoenix V2 | 433 MHz | AM | Yes | Yes |
+| Doitrand | 433 MHz | AM | Yes | Yes |
+| Hay21 | 433 MHz | AM | Yes | Yes |
+| Revers RB2 | 433 MHz | AM | Yes | Yes |
+| Roger | 433 MHz | AM | Yes | Yes |
+| BinRAW | 433/315/868 MHz | AM/FM | Yes | Yes |
+| RAW | All | All | Yes | Yes |
+
+---
+
 ### How to Build
 
 Compact release build:
