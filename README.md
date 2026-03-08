@@ -73,13 +73,6 @@ All modifications remain compatible with the **Flipper Zero open-source API stru
 
 ---
 
-## Compatibility
-
-- Fully compatible with Flipper Zero build system
-- Supports compact builds
-- Maintains structural compatibility with standard open-source Flipper firmware
-
----
 
 ## Research Direction
 
