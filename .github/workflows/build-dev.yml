@@ -1,0 +1,47 @@
+name: Build Dev Firmware
+
+on:
+  push:
+    branches:
+      - dev
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build firmware
+        run: |
+          chmod +x fbt
+          ./fbt COMPACT=1 DEBUG=0 updater_package
+
+      - name: Generate tag name
+        id: tag
+        run: echo "TAG=dev-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Detect firmware updater
+        id: firmware
+        run: |
+          DIR=$(ls -d dist/f7-* | head -n 1)
+          FILE="$DIR/flipper-z-f7-update-local.tgz"
+
+          if [ ! -f "$FILE" ]; then
+            echo "Firmware file not found!"
+            exit 1
+          fi
+
+          echo "FILE=$FILE" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.TAG }}
+          name: Dev Build ${{ steps.tag.outputs.TAG }}
+          files: ${{ steps.firmware.outputs.FILE }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
