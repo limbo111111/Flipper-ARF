@@ -1,34 +1,30 @@
 #pragma once
 
-#include "kia_generic.h"
+#include "base.h"
+#include "../blocks/math.h"
 #include <lib/toolbox/manchester_decoder.h>
 
-
-#define KIA_PROTOCOL_V2_NAME "KIA/HYU V2"
+#define SUBGHZ_PROTOCOL_KIA_V2_NAME "KIA/HYU V2"
 
 typedef struct SubGhzProtocolDecoderKiaV2 SubGhzProtocolDecoderKiaV2;
 typedef struct SubGhzProtocolEncoderKiaV2 SubGhzProtocolEncoderKiaV2;
 
-extern const SubGhzProtocolDecoder kia_protocol_v2_decoder;
-extern const SubGhzProtocolEncoder kia_protocol_v2_encoder;
 extern const SubGhzProtocol subghz_protocol_kia_v2;
 
-void* kia_protocol_decoder_v2_alloc(SubGhzEnvironment* environment);
-void kia_protocol_decoder_v2_free(void* context);
-void kia_protocol_decoder_v2_reset(void* context);
-void kia_protocol_decoder_v2_feed(void* context, bool level, uint32_t duration);
-uint8_t kia_protocol_decoder_v2_get_hash_data(void* context);
-SubGhzProtocolStatus kia_protocol_decoder_v2_serialize(
+void* subghz_protocol_decoder_kia_v2_alloc(SubGhzEnvironment* environment);
+void subghz_protocol_decoder_kia_v2_free(void* context);
+void subghz_protocol_decoder_kia_v2_reset(void* context);
+void subghz_protocol_decoder_kia_v2_feed(void* context, bool level, uint32_t duration);
+uint8_t subghz_protocol_decoder_kia_v2_get_hash_data(void* context);
+SubGhzProtocolStatus subghz_protocol_decoder_kia_v2_serialize(
     void* context,
     FlipperFormat* flipper_format,
     SubGhzRadioPreset* preset);
-SubGhzProtocolStatus
-    kia_protocol_decoder_v2_deserialize(void* context, FlipperFormat* flipper_format);
-void kia_protocol_decoder_v2_get_string(void* context, FuriString* output);
+SubGhzProtocolStatus subghz_protocol_decoder_kia_v2_deserialize(void* context, FlipperFormat* flipper_format);
+void subghz_protocol_decoder_kia_v2_get_string(void* context, FuriString* output);
 
-void* kia_protocol_encoder_v2_alloc(SubGhzEnvironment* environment);
-void kia_protocol_encoder_v2_free(void* context);
-SubGhzProtocolStatus
-    kia_protocol_encoder_v2_deserialize(void* context, FlipperFormat* flipper_format);
-void kia_protocol_encoder_v2_stop(void* context);
-LevelDuration kia_protocol_encoder_v2_yield(void* context);
+void* subghz_protocol_encoder_kia_v2_alloc(SubGhzEnvironment* environment);
+void subghz_protocol_encoder_kia_v2_free(void* context);
+SubGhzProtocolStatus subghz_protocol_encoder_kia_v2_deserialize(void* context, FlipperFormat* flipper_format);
+void subghz_protocol_encoder_kia_v2_stop(void* context);
+LevelDuration subghz_protocol_encoder_kia_v2_yield(void* context);

@@ -1,27 +1,13 @@
 #include "kia_v0.h"
+
+#include "../blocks/const.h"
+#include "../blocks/decoder.h"
+#include "../blocks/encoder.h"
+#include "../blocks/generic.h"
+#include "../blocks/math.h"
 #include "../blocks/custom_btn_i.h"
 
-static const char* kia_v0_btn_name(uint8_t btn) {
-    if(btn == 0x01) return "Lock";
-    if(btn == 0x02) return "Unlock";
-    if(btn == 0x03) return "Boot";
-    return "?";
-}
-
-static uint8_t kia_v0_get_btn_code() {
-    uint8_t custom_btn = subghz_custom_btn_get();
-    uint8_t original_btn = subghz_custom_btn_get_original();
-    if(custom_btn == SUBGHZ_CUSTOM_BTN_OK)    return original_btn;
-    if(custom_btn == SUBGHZ_CUSTOM_BTN_UP)    return 0x01; // Lock
-    if(custom_btn == SUBGHZ_CUSTOM_BTN_DOWN)  return 0x02; // Unlock
-    if(custom_btn == SUBGHZ_CUSTOM_BTN_LEFT)  return 0x03; // Boot/Trunk
-    if(custom_btn == SUBGHZ_CUSTOM_BTN_RIGHT) return 0x03; // Boot/Trunk
-    return original_btn;
-}
-
-
-
-#define TAG "KiaProtocolV0"
+#define TAG "SubGhzProtocolKiaV0"
 
 static const SubGhzBlockConst subghz_protocol_kia_const = {
     .te_short = 250,
@@ -30,25 +16,20 @@ static const SubGhzBlockConst subghz_protocol_kia_const = {
     .min_count_bit_for_found = 61,
 };
 
-// Multi-burst configuration
-#define KIA_TOTAL_BURSTS       2
-#define KIA_INTER_BURST_GAP_US 25000
-
 struct SubGhzProtocolDecoderKIA {
     SubGhzProtocolDecoderBase base;
+
     SubGhzBlockDecoder decoder;
     SubGhzBlockGeneric generic;
+
     uint16_t header_count;
 };
 
 struct SubGhzProtocolEncoderKIA {
     SubGhzProtocolEncoderBase base;
+
     SubGhzProtocolBlockEncoder encoder;
     SubGhzBlockGeneric generic;
-
-    uint32_t serial;
-    uint8_t button;
-    uint16_t counter;
 };
 
 typedef enum {
@@ -58,19 +39,13 @@ typedef enum {
     KIADecoderStepCheckDuration,
 } KIADecoderStep;
 
-// Forward declarations for encoder
-void* subghz_protocol_encoder_kia_alloc(SubGhzEnvironment* environment);
-void subghz_protocol_encoder_kia_free(void* context);
-SubGhzProtocolStatus
-    subghz_protocol_encoder_kia_deserialize(void* context, FlipperFormat* flipper_format);
-void subghz_protocol_encoder_kia_stop(void* context);
-LevelDuration subghz_protocol_encoder_kia_yield(void* context);
-
 const SubGhzProtocolDecoder subghz_protocol_kia_decoder = {
     .alloc = subghz_protocol_decoder_kia_alloc,
     .free = subghz_protocol_decoder_kia_free,
+
     .feed = subghz_protocol_decoder_kia_feed,
     .reset = subghz_protocol_decoder_kia_reset,
+
     .get_hash_data = subghz_protocol_decoder_kia_get_hash_data,
     .serialize = subghz_protocol_decoder_kia_serialize,
     .deserialize = subghz_protocol_decoder_kia_deserialize,
@@ -80,16 +55,17 @@ const SubGhzProtocolDecoder subghz_protocol_kia_decoder = {
 const SubGhzProtocolEncoder subghz_protocol_kia_encoder = {
     .alloc = subghz_protocol_encoder_kia_alloc,
     .free = subghz_protocol_encoder_kia_free,
+
     .deserialize = subghz_protocol_encoder_kia_deserialize,
     .stop = subghz_protocol_encoder_kia_stop,
     .yield = subghz_protocol_encoder_kia_yield,
 };
 
 const SubGhzProtocol subghz_protocol_kia_v0 = {
-    .name = KIA_PROTOCOL_V0_NAME,
+    .name = SUBGHZ_PROTOCOL_KIA_V0_NAME,
     .type = SubGhzProtocolTypeDynamic,
-    .flag = SubGhzProtocolFlag_433 | SubGhzProtocolFlag_FM | SubGhzProtocolFlag_Decodable |
-            SubGhzProtocolFlag_Save | SubGhzProtocolFlag_Send,
+    .flag = SubGhzProtocolFlag_315 | SubGhzProtocolFlag_433 | SubGhzProtocolFlag_AM | SubGhzProtocolFlag_FM | SubGhzProtocolFlag_Decodable | SubGhzProtocolFlag_Load | SubGhzProtocolFlag_Save | SubGhzProtocolFlag_Send,
+
     .decoder = &subghz_protocol_kia_decoder,
     .encoder = &subghz_protocol_kia_encoder,
 };
@@ -101,7 +77,7 @@ const SubGhzProtocol subghz_protocol_kia_v0 = {
  * MSB-first processing
  */
 static uint8_t kia_crc8(uint8_t* data, size_t len) {
-    uint8_t crc = 0;
+    uint8_t crc = 0x00;
     for(size_t i = 0; i < len; i++) {
         crc ^= data[i];
         for(size_t j = 0; j < 8; j++) {
@@ -126,7 +102,7 @@ static uint8_t kia_calculate_crc(uint64_t data) {
     crc_data[3] = (data >> 24) & 0xFF;
     crc_data[4] = (data >> 16) & 0xFF;
     crc_data[5] = (data >> 8) & 0xFF;
-
+    
     return kia_crc8(crc_data, 6);
 }
 
@@ -136,14 +112,6 @@ static uint8_t kia_calculate_crc(uint64_t data) {
 static bool kia_verify_crc(uint64_t data) {
     uint8_t received_crc = data & 0xFF;
     uint8_t calculated_crc = kia_calculate_crc(data);
-
-    FURI_LOG_D(
-        TAG,
-        "CRC Check - Received: 0x%02X, Calculated: 0x%02X, Match: %s",
-        received_crc,
-        calculated_crc,
-        (received_crc == calculated_crc) ? "YES" : "NO");
-
     return (received_crc == calculated_crc);
 }
 
@@ -155,386 +123,250 @@ void* subghz_protocol_encoder_kia_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
     SubGhzProtocolEncoderKIA* instance = malloc(sizeof(SubGhzProtocolEncoderKIA));
     instance->base.protocol = &subghz_protocol_kia_v0;
-    instance->serial = 0;
-    instance->button = 0;
-    instance->counter = 0;
-
-    instance->encoder.size_upload = (32 + 2 + 118 + 1) * KIA_TOTAL_BURSTS + (KIA_TOTAL_BURSTS - 1);
+    instance->generic.protocol_name = instance->base.protocol->name;
+    instance->encoder.size_upload = 848;
     instance->encoder.upload = malloc(instance->encoder.size_upload * sizeof(LevelDuration));
-    instance->encoder.repeat =
-        10; // High repeat count for continuous transmission while button is held
-    instance->encoder.front = 0;
+    instance->encoder.repeat = 1;
     instance->encoder.is_running = false;
 
-    FURI_LOG_I(TAG, "Encoder allocated at %p", instance);
     return instance;
 }
 
 void subghz_protocol_encoder_kia_free(void* context) {
-    furi_check(context);
+    furi_assert(context);
     SubGhzProtocolEncoderKIA* instance = context;
-    if(instance->encoder.upload) {
-        free(instance->encoder.upload);
-    }
+    free(instance->encoder.upload);
     free(instance);
 }
 
-/**
- * Rebuild the 61-bit data packet with current button/counter values and recalculate CRC
- */
-static void subghz_protocol_encoder_kia_update_data(SubGhzProtocolEncoderKIA* instance) {
-    uint64_t data = 0;
-
-    // Bits 56-59: Preserve from original capture
-    data |= (instance->generic.data & 0x0F00000000000000ULL);
-
-    // Bits 40-55: Counter (16 bits)
-    data |= ((uint64_t)(instance->counter & 0xFFFF) << 40);
-
-    // Bits 12-39: Serial (28 bits)
-    data |= ((uint64_t)(instance->serial & 0x0FFFFFFF) << 12);
-
-    // Bits 8-11: Button (4 bits)
-    data |= ((uint64_t)(instance->button & 0x0F) << 8);
-
-    // Bits 0-7: Calculate and set CRC
-    uint8_t crc = kia_calculate_crc(data);
-    data |= crc;
-
-    instance->generic.data = data;
-
-    FURI_LOG_I(
-        TAG,
-        "Data updated - Serial: 0x%07lX, Btn: 0x%X, Cnt: 0x%04X, CRC: 0x%02X",
-        instance->serial,
-        instance->button,
-        instance->counter,
-        crc);
-    FURI_LOG_I(TAG, "Full data: 0x%016llX", instance->generic.data);
-}
-
-static void subghz_protocol_encoder_kia_get_upload(SubGhzProtocolEncoderKIA* instance) {
-    furi_check(instance);
-    size_t index = 0;
-
-    for(uint8_t burst = 0; burst < KIA_TOTAL_BURSTS; burst++) {
-        if(burst > 0) {
-            instance->encoder.upload[index++] = level_duration_make(false, KIA_INTER_BURST_GAP_US);
-        }
-
-        for(int i = 0; i < 32; i++) {
-            bool is_high = (i % 2) == 0;
-            instance->encoder.upload[index++] =
-                level_duration_make(is_high, subghz_protocol_kia_const.te_short);
-        }
-
-        instance->encoder.upload[index++] =
-            level_duration_make(true, subghz_protocol_kia_const.te_long);
-
-        instance->encoder.upload[index++] =
-            level_duration_make(false, subghz_protocol_kia_const.te_long);
-
-        for(uint8_t bit_num = 0; bit_num < 59; bit_num++) {
-            uint64_t bit_mask = 1ULL << (58 - bit_num);
-            uint8_t current_bit = (instance->generic.data & bit_mask) ? 1 : 0;
-
-            uint32_t duration = current_bit ? subghz_protocol_kia_const.te_long :
-                                              subghz_protocol_kia_const.te_short;
-
-            instance->encoder.upload[index++] = level_duration_make(true, duration);
-            instance->encoder.upload[index++] = level_duration_make(false, duration);
-        }
-
-        instance->encoder.upload[index++] =
-            level_duration_make(true, subghz_protocol_kia_const.te_long * 2);
-    }
-
-    instance->encoder.size_upload = index;
-    instance->encoder.front = 0;
-
-    FURI_LOG_I(
-        TAG,
-        "Upload built: %d bursts, size_upload=%zu, data_count_bit=%u, data=0x%016llX",
-        KIA_TOTAL_BURSTS,
-        instance->encoder.size_upload,
-        instance->generic.data_count_bit,
-        instance->generic.data);
-}
-
-SubGhzProtocolStatus
-    subghz_protocol_encoder_kia_deserialize(void* context, FlipperFormat* flipper_format) {
-    furi_check(context);
-    SubGhzProtocolEncoderKIA* instance = context;
-
-    flipper_format_rewind(flipper_format);
-    instance->encoder.is_running = false;
-    instance->encoder.front = 0;
-    instance->encoder.repeat = 10;
-
-    SubGhzProtocolStatus res = SubGhzProtocolStatusError;
-    do {
-        // Read protocol name and validate
-        FuriString* temp_str = furi_string_alloc();
-        if(!flipper_format_read_string(flipper_format, "Protocol", temp_str)) {
-            FURI_LOG_E(TAG, "Missing Protocol");
-            furi_string_free(temp_str);
-            break;
-        }
-
-        FURI_LOG_I(TAG, "Protocol: %s", furi_string_get_cstr(temp_str));
-
-        if(!furi_string_equal(temp_str, instance->base.protocol->name)) {
-            FURI_LOG_E(
-                TAG,
-                "Wrong protocol %s != %s",
-                furi_string_get_cstr(temp_str),
-                instance->base.protocol->name);
-            furi_string_free(temp_str);
-            break;
-        }
-        furi_string_free(temp_str);
-
-        // Read bit count
-        uint32_t bit_count_temp;
-        if(!flipper_format_read_uint32(flipper_format, "Bit", &bit_count_temp, 1)) {
-            FURI_LOG_E(TAG, "Missing Bit");
-            break;
-        }
-
-        FURI_LOG_I(TAG, "Bit count read: %lu", bit_count_temp);
-
-        // Always use 61 bits for Kia V0
-        instance->generic.data_count_bit = 61;
-
-        // Read key data
-        temp_str = furi_string_alloc();
-        if(!flipper_format_read_string(flipper_format, "Key", temp_str)) {
-            FURI_LOG_E(TAG, "Missing Key");
-            furi_string_free(temp_str);
-            break;
-        }
-
-        const char* key_str = furi_string_get_cstr(temp_str);
-        FURI_LOG_I(TAG, "Key string: %s", key_str);
-
-        // Manual hex parsing
-        uint64_t key = 0;
-        size_t str_len = strlen(key_str);
-
-        size_t hex_pos = 0;
-        for(size_t i = 0; i < str_len && hex_pos < 16; i++) {
-            char c = key_str[i];
-            if(c == ' ') continue;
-
-            uint8_t nibble;
-            if(c >= '0' && c <= '9') {
-                nibble = c - '0';
-            } else if(c >= 'A' && c <= 'F') {
-                nibble = c - 'A' + 10;
-            } else if(c >= 'a' && c <= 'f') {
-                nibble = c - 'a' + 10;
-            } else {
-                FURI_LOG_E(TAG, "Invalid hex character: %c", c);
-                furi_string_free(temp_str);
-                break;
-            }
-
-            key = (key << 4) | nibble;
-            hex_pos++;
-        }
-
-        furi_string_free(temp_str);
-
-        if(hex_pos != 16) {
-            FURI_LOG_E(TAG, "Invalid key length: %zu nibbles (expected 16)", hex_pos);
-            break;
-        }
-
-        instance->generic.data = key;
-        FURI_LOG_I(TAG, "Parsed key: 0x%016llX", instance->generic.data);
-
-        if(instance->generic.data == 0) {
-            FURI_LOG_E(TAG, "Key is zero after parsing!");
-            break;
-        }
-
-        // Verify CRC of the captured data
-        if(!kia_verify_crc(key)) {
-            FURI_LOG_W(TAG, "CRC mismatch in captured data - signal may be corrupted");
-        }
-
-        // Read or extract serial
-        if(!flipper_format_read_uint32(flipper_format, "Serial", &instance->serial, 1)) {
-            instance->serial = (uint32_t)((key >> 12) & 0x0FFFFFFF);
-            FURI_LOG_I(TAG, "Extracted serial: 0x%08lX", instance->serial);
-        } else {
-            FURI_LOG_I(TAG, "Read serial: 0x%08lX", instance->serial);
-        }
-
-        // Read or extract button
-        uint32_t btn_temp;
-        if(flipper_format_read_uint32(flipper_format, "Btn", &btn_temp, 1)) {
-            instance->button = (uint8_t)btn_temp;
-        } else {
-            instance->button = (key >> 8) & 0x0F;
-        }
-        subghz_custom_btn_set_original(instance->button);
-        subghz_custom_btn_set_max(4);
-        instance->button = kia_v0_get_btn_code();
-
-        // Read or extract counter
-        uint32_t cnt_temp;
-        if(flipper_format_read_uint32(flipper_format, "Cnt", &cnt_temp, 1)) {
-            instance->counter = (uint16_t)cnt_temp;
-            FURI_LOG_I(TAG, "Read counter: 0x%04X", instance->counter);
-        } else {
-            instance->counter = (key >> 40) & 0xFFFF;
-            FURI_LOG_I(TAG, "Extracted counter: 0x%04X", instance->counter);
-        }
-
-        // Rebuild data with CRC recalculation
-        subghz_protocol_encoder_kia_update_data(instance);
-
-        if(!flipper_format_read_uint32(
-               flipper_format, "Repeat", (uint32_t*)&instance->encoder.repeat, 1)) {
-            instance->encoder.repeat = 10;
-            FURI_LOG_D(
-                TAG, "Repeat not found in file, using default 10 for continuous transmission");
-        }
-
-        subghz_protocol_encoder_kia_get_upload(instance);
-
-        instance->encoder.is_running = true;
-        instance->encoder.front = 0;
-
-        if(instance->generic.data == 0) {
-            FURI_LOG_E(TAG, "Warning: data is 0!");
-        }
-
-        FURI_LOG_I(
-            TAG,
-            "Encoder initialized - will send %d bursts, repeat=%u, front=%zu",
-            KIA_TOTAL_BURSTS,
-            instance->encoder.repeat,
-            instance->encoder.front);
-        FURI_LOG_I(TAG, "Final data to transmit: 0x%016llX", instance->generic.data);
-        res = SubGhzProtocolStatusOk;
-    } while(false);
-
-    return res;
-}
-
 void subghz_protocol_encoder_kia_stop(void* context) {
-    if(!context) return;
     SubGhzProtocolEncoderKIA* instance = context;
     instance->encoder.is_running = false;
-    instance->encoder.front = 0;
 }
 
 LevelDuration subghz_protocol_encoder_kia_yield(void* context) {
     SubGhzProtocolEncoderKIA* instance = context;
 
-    if(!instance || !instance->encoder.upload || instance->encoder.repeat == 0 ||
-       !instance->encoder.is_running) {
-        if(instance) {
-            FURI_LOG_D(
-                TAG,
-                "Encoder yield stopped: repeat=%u, is_running=%d, upload=%p",
-                instance->encoder.repeat,
-                instance->encoder.is_running,
-                instance->encoder.upload);
-            instance->encoder.is_running = false;
-        }
-        return level_duration_reset();
-    }
-
-    if(instance->encoder.front >= instance->encoder.size_upload) {
-        FURI_LOG_E(
-            TAG,
-            "Encoder front out of bounds: %zu >= %zu",
-            instance->encoder.front,
-            instance->encoder.size_upload);
+    if(instance->encoder.repeat == 0 || !instance->encoder.is_running) {
         instance->encoder.is_running = false;
-        instance->encoder.front = 0;
         return level_duration_reset();
     }
 
     LevelDuration ret = instance->encoder.upload[instance->encoder.front];
-
-    if(instance->encoder.front < 5 || instance->encoder.front == 0) {
-        FURI_LOG_D(
-            TAG,
-            "Encoder yield[%zu]: repeat=%u, size=%zu, level=%d, duration=%lu",
-            instance->encoder.front,
-            instance->encoder.repeat,
-            instance->encoder.size_upload,
-            level_duration_get_level(ret),
-            level_duration_get_duration(ret));
-    }
-
     if(++instance->encoder.front == instance->encoder.size_upload) {
         instance->encoder.repeat--;
         instance->encoder.front = 0;
-        FURI_LOG_I(
-            TAG, "Encoder completed one cycle, remaining repeat=%u", instance->encoder.repeat);
     }
 
     return ret;
 }
 
-/**
- * Set button value and recalculate CRC
+/** 
+ * Analysis of received data
+ * @param instance Pointer to a SubGhzBlockGeneric* instance
  */
+static void subghz_protocol_kia_check_remote_controller(SubGhzBlockGeneric* instance);
+
+/**
+ * Generating an upload from data.
+ * @param instance Pointer to a SubGhzProtocolEncoderKIA instance
+ * @return true On success
+ */
+static bool subghz_protocol_encoder_kia_get_upload(SubGhzProtocolEncoderKIA* instance) {
+    furi_assert(instance);
+
+    // Save original button
+    if(subghz_custom_btn_get_original() == 0) {
+        subghz_custom_btn_set_original(instance->generic.btn);
+    }
+    subghz_custom_btn_set_max(4);
+
+    size_t index = 0;
+    size_t size_upload = (instance->generic.data_count_bit * 2 + 32) * 2 + 540;
+    if(size_upload > instance->encoder.size_upload) {
+        FURI_LOG_E(
+            TAG,
+            "Size upload exceeds allocated encoder buffer. %i",
+            instance->generic.data_count_bit);
+        return false;
+    } else {
+        instance->encoder.size_upload = size_upload;
+    }
+
+    // Counter increment logic
+    if(instance->generic.cnt < 0xFFFF) {
+        if((instance->generic.cnt + furi_hal_subghz_get_rolling_counter_mult()) > 0xFFFF) {
+            instance->generic.cnt = 0;
+        } else {
+            instance->generic.cnt += furi_hal_subghz_get_rolling_counter_mult();
+        }
+    } else if(instance->generic.cnt >= 0xFFFF) {
+        instance->generic.cnt = 0;
+    }
+
+    // Get button (custom or original)
+    // This allows button changing with directional keys in SubGhz app
+    uint8_t btn = subghz_custom_btn_get() == SUBGHZ_CUSTOM_BTN_OK ?
+                      subghz_custom_btn_get_original() :
+                      subghz_custom_btn_get();
+    
+    // Update the generic button value for potential button changes
+    instance->generic.btn = btn;
+
+    // Build data packet
+    uint64_t data = 0;
+    
+    // Bits 56-59: Fixed preamble (0x0F)
+    data |= ((uint64_t)(0x0F) << 56);
+    
+    // Bits 40-55: Counter (16 bits)
+    data |= ((uint64_t)(instance->generic.cnt & 0xFFFF) << 40);
+    
+    // Bits 12-39: Serial (28 bits)
+    data |= ((uint64_t)(instance->generic.serial & 0x0FFFFFFF) << 12);
+    
+    // Bits 8-11: Button (4 bits)
+    data |= ((uint64_t)(btn & 0x0F) << 8);
+    
+    // Bits 0-7: CRC
+    uint8_t crc = kia_calculate_crc(data);
+    data |= crc;
+    
+    instance->generic.data = data;
+
+    // Send header (270 pulses of te_short)
+    for(uint16_t i = 270; i > 0; i--) {
+        instance->encoder.upload[index++] =
+            level_duration_make(true, (uint32_t)subghz_protocol_kia_const.te_short);
+        instance->encoder.upload[index++] =
+            level_duration_make(false, (uint32_t)subghz_protocol_kia_const.te_short);
+    }
+
+    // Send 2 data bursts
+    for(uint8_t h = 2; h > 0; h--) {
+        // Send sync bits (15 pulses of te_short)
+        for(uint8_t i = 15; i > 0; i--) {
+            instance->encoder.upload[index++] =
+                level_duration_make(true, (uint32_t)subghz_protocol_kia_const.te_short);
+            instance->encoder.upload[index++] =
+                level_duration_make(false, (uint32_t)subghz_protocol_kia_const.te_short);
+        }
+
+        // Send data bits (PWM encoding)
+        for(uint8_t i = instance->generic.data_count_bit; i > 0; i--) {
+            if(bit_read(instance->generic.data, i - 1)) {
+                // Send bit 1: long pulse
+                instance->encoder.upload[index++] =
+                    level_duration_make(true, (uint32_t)subghz_protocol_kia_const.te_long);
+                instance->encoder.upload[index++] =
+                    level_duration_make(false, (uint32_t)subghz_protocol_kia_const.te_long);
+            } else {
+                // Send bit 0: short pulse
+                instance->encoder.upload[index++] =
+                    level_duration_make(true, (uint32_t)subghz_protocol_kia_const.te_short);
+                instance->encoder.upload[index++] =
+                    level_duration_make(false, (uint32_t)subghz_protocol_kia_const.te_short);
+            }
+        }
+
+        // Send stop bit (3x te_long)
+        instance->encoder.upload[index++] =
+            level_duration_make(true, (uint32_t)subghz_protocol_kia_const.te_long * 3);
+        instance->encoder.upload[index++] =
+            level_duration_make(false, (uint32_t)subghz_protocol_kia_const.te_long * 3);
+    }
+
+    return true;
+}
+
+SubGhzProtocolStatus subghz_protocol_encoder_kia_deserialize(void* context, FlipperFormat* flipper_format) {
+    furi_assert(context);
+    SubGhzProtocolEncoderKIA* instance = context;
+    SubGhzProtocolStatus ret = SubGhzProtocolStatusError;
+    
+    do {
+        ret = subghz_block_generic_deserialize_check_count_bit(
+            &instance->generic,
+            flipper_format,
+            subghz_protocol_kia_const.min_count_bit_for_found);
+
+        if(ret != SubGhzProtocolStatusOk) {
+            break;
+        }
+
+        // Extract serial, button, counter from data
+        subghz_protocol_kia_check_remote_controller(&instance->generic);
+
+        // Verify CRC
+        if(!kia_verify_crc(instance->generic.data)) {
+            FURI_LOG_W(TAG, "CRC mismatch in loaded file");
+            ret = SubGhzProtocolStatusErrorParserOthers;
+            break;
+        }
+
+        if(!subghz_protocol_encoder_kia_get_upload(instance)) {
+            ret = SubGhzProtocolStatusErrorEncoderGetUpload;
+            break;
+        }
+
+        // Update the Key in the file with the new counter/button/CRC
+        if(!flipper_format_rewind(flipper_format)) {
+            FURI_LOG_E(TAG, "Rewind error");
+            ret = SubGhzProtocolStatusErrorParserOthers;
+            break;
+        }
+        uint8_t key_data[sizeof(uint64_t)] = {0};
+        for(size_t i = 0; i < sizeof(uint64_t); i++) {
+            key_data[sizeof(uint64_t) - i - 1] = (instance->generic.data >> i * 8) & 0xFF;
+        }
+        if(!flipper_format_update_hex(flipper_format, "Key", key_data, sizeof(uint64_t))) {
+            FURI_LOG_E(TAG, "Unable to update Key");
+            ret = SubGhzProtocolStatusErrorParserKey;
+            break;
+        }
+
+        instance->encoder.is_running = true;
+    } while(false);
+
+    return ret;
+}
+
+// ============================================================================
+// ENCODER HELPER FUNCTIONS
+// ============================================================================
+
 void subghz_protocol_encoder_kia_set_button(void* context, uint8_t button) {
-    furi_check(context);
+    furi_assert(context);
     SubGhzProtocolEncoderKIA* instance = context;
-    instance->button = button & 0x0F;
-    subghz_protocol_encoder_kia_update_data(instance);
-    subghz_protocol_encoder_kia_get_upload(instance);
-    FURI_LOG_I(TAG, "Button set to 0x%X, upload rebuilt with new CRC", instance->button);
+    instance->generic.btn = button & 0x0F;
 }
 
-/**
- * Set counter value and recalculate CRC
- */
 void subghz_protocol_encoder_kia_set_counter(void* context, uint16_t counter) {
-    furi_check(context);
+    furi_assert(context);
     SubGhzProtocolEncoderKIA* instance = context;
-    instance->counter = counter;
-    subghz_protocol_encoder_kia_update_data(instance);
-    subghz_protocol_encoder_kia_get_upload(instance);
-    FURI_LOG_I(TAG, "Counter set to 0x%04X, upload rebuilt with new CRC", instance->counter);
+    instance->generic.cnt = counter;
 }
 
-/**
- * Increment counter and recalculate CRC
- */
 void subghz_protocol_encoder_kia_increment_counter(void* context) {
-    furi_check(context);
+    furi_assert(context);
     SubGhzProtocolEncoderKIA* instance = context;
-    instance->counter++;
-    subghz_protocol_encoder_kia_update_data(instance);
-    subghz_protocol_encoder_kia_get_upload(instance);
-    FURI_LOG_I(
-        TAG, "Counter incremented to 0x%04X, upload rebuilt with new CRC", instance->counter);
+    if(instance->generic.cnt < 0xFFFF) {
+        instance->generic.cnt++;
+    } else {
+        instance->generic.cnt = 0;
+    }
 }
 
-/**
- * Get current counter value
- */
 uint16_t subghz_protocol_encoder_kia_get_counter(void* context) {
-    furi_check(context);
+    furi_assert(context);
     SubGhzProtocolEncoderKIA* instance = context;
-    return instance->counter;
+    return instance->generic.cnt;
 }
 
-/**
- * Get current button value
- */
 uint8_t subghz_protocol_encoder_kia_get_button(void* context) {
-    furi_check(context);
+    furi_assert(context);
     SubGhzProtocolEncoderKIA* instance = context;
-    return instance->button;
+    return instance->generic.btn;
 }
 
 // ============================================================================
@@ -546,23 +378,24 @@ void* subghz_protocol_decoder_kia_alloc(SubGhzEnvironment* environment) {
     SubGhzProtocolDecoderKIA* instance = malloc(sizeof(SubGhzProtocolDecoderKIA));
     instance->base.protocol = &subghz_protocol_kia_v0;
     instance->generic.protocol_name = instance->base.protocol->name;
+
     return instance;
 }
 
 void subghz_protocol_decoder_kia_free(void* context) {
-    furi_check(context);
+    furi_assert(context);
     SubGhzProtocolDecoderKIA* instance = context;
     free(instance);
 }
 
 void subghz_protocol_decoder_kia_reset(void* context) {
-    furi_check(context);
+    furi_assert(context);
     SubGhzProtocolDecoderKIA* instance = context;
     instance->decoder.parser_step = KIADecoderStepReset;
 }
 
 void subghz_protocol_decoder_kia_feed(void* context, bool level, uint32_t duration) {
-    furi_check(context);
+    furi_assert(context);
     SubGhzProtocolDecoderKIA* instance = context;
 
     switch(instance->decoder.parser_step) {
@@ -574,7 +407,7 @@ void subghz_protocol_decoder_kia_feed(void* context, bool level, uint32_t durati
             instance->header_count = 0;
         }
         break;
-
+        
     case KIADecoderStepCheckPreambula:
         if(level) {
             if((DURATION_DIFF(duration, subghz_protocol_kia_const.te_short) <
@@ -590,6 +423,7 @@ void subghz_protocol_decoder_kia_feed(void* context, bool level, uint32_t durati
              subghz_protocol_kia_const.te_delta) &&
             (DURATION_DIFF(instance->decoder.te_last, subghz_protocol_kia_const.te_short) <
              subghz_protocol_kia_const.te_delta)) {
+            // Found header
             instance->header_count++;
             break;
         } else if(
@@ -597,13 +431,12 @@ void subghz_protocol_decoder_kia_feed(void* context, bool level, uint32_t durati
              subghz_protocol_kia_const.te_delta) &&
             (DURATION_DIFF(instance->decoder.te_last, subghz_protocol_kia_const.te_long) <
              subghz_protocol_kia_const.te_delta)) {
+            // Found start bit
             if(instance->header_count > 15) {
                 instance->decoder.parser_step = KIADecoderStepSaveDuration;
                 instance->decoder.decode_data = 0;
                 instance->decoder.decode_count_bit = 1;
                 subghz_protocol_blocks_add_bit(&instance->decoder, 1);
-                FURI_LOG_I(
-                    TAG, "Starting data decode after %u header pulses", instance->header_count);
             } else {
                 instance->decoder.parser_step = KIADecoderStepReset;
             }
@@ -611,34 +444,26 @@ void subghz_protocol_decoder_kia_feed(void* context, bool level, uint32_t durati
             instance->decoder.parser_step = KIADecoderStepReset;
         }
         break;
-
+        
     case KIADecoderStepSaveDuration:
         if(level) {
             if(duration >=
                (subghz_protocol_kia_const.te_long + subghz_protocol_kia_const.te_delta * 2UL)) {
-                // End of transmission detected
+                // Found stop bit
                 instance->decoder.parser_step = KIADecoderStepReset;
-
                 if(instance->decoder.decode_count_bit ==
                    subghz_protocol_kia_const.min_count_bit_for_found) {
                     instance->generic.data = instance->decoder.decode_data;
                     instance->generic.data_count_bit = instance->decoder.decode_count_bit;
-
+                    
+                    // Verify CRC before accepting the packet
                     if(kia_verify_crc(instance->generic.data)) {
-                        FURI_LOG_I(TAG, "Valid signal received with correct CRC");
+                        if(instance->base.callback)
+                            instance->base.callback(&instance->base, instance->base.context);
                     } else {
-                        FURI_LOG_W(TAG, "Signal received but CRC mismatch!");
+                        FURI_LOG_W(TAG, "CRC verification failed, packet rejected");
                     }
-
-                    if(instance->base.callback)
-                        instance->base.callback(&instance->base, instance->base.context);
-                } else {
-                    FURI_LOG_E(
-                        TAG,
-                        "Incomplete signal: only %u bits",
-                        instance->decoder.decode_count_bit);
                 }
-
                 instance->decoder.decode_data = 0;
                 instance->decoder.decode_count_bit = 0;
                 break;
@@ -646,11 +471,12 @@ void subghz_protocol_decoder_kia_feed(void* context, bool level, uint32_t durati
                 instance->decoder.te_last = duration;
                 instance->decoder.parser_step = KIADecoderStepCheckDuration;
             }
+
         } else {
             instance->decoder.parser_step = KIADecoderStepReset;
         }
         break;
-
+        
     case KIADecoderStepCheckDuration:
         if(!level) {
             if((DURATION_DIFF(instance->decoder.te_last, subghz_protocol_kia_const.te_short) <
@@ -667,12 +493,6 @@ void subghz_protocol_decoder_kia_feed(void* context, bool level, uint32_t durati
                 subghz_protocol_blocks_add_bit(&instance->decoder, 1);
                 instance->decoder.parser_step = KIADecoderStepSaveDuration;
             } else {
-                FURI_LOG_W(
-                    TAG,
-                    "Timing mismatch at bit %u. Last: %lu, Current: %lu",
-                    instance->decoder.decode_count_bit,
-                    instance->decoder.te_last,
-                    duration);
                 instance->decoder.parser_step = KIADecoderStepReset;
             }
         } else {
@@ -682,14 +502,33 @@ void subghz_protocol_decoder_kia_feed(void* context, bool level, uint32_t durati
     }
 }
 
+/** 
+ * Analysis of received data
+ * @param instance Pointer to a SubGhzBlockGeneric* instance
+ */
 static void subghz_protocol_kia_check_remote_controller(SubGhzBlockGeneric* instance) {
+    /*
+    *   0x0F 0112 43B04EC 1 7D
+    *   0x0F 0113 43B04EC 1 DF
+    *   0x0F 0114 43B04EC 1 30
+    *   0x0F 0115 43B04EC 2 13
+    *   0x0F 0116 43B04EC 3 F5
+    *         CNT  Serial K CRC8 Kia
+    */
+
     instance->serial = (uint32_t)((instance->data >> 12) & 0x0FFFFFFF);
     instance->btn = (instance->data >> 8) & 0x0F;
     instance->cnt = (instance->data >> 40) & 0xFFFF;
+
+    if(subghz_custom_btn_get_original() == 0) {
+        subghz_custom_btn_set_original(instance->btn);
+    }
+
+    subghz_custom_btn_set_max(4);
 }
 
 uint8_t subghz_protocol_decoder_kia_get_hash_data(void* context) {
-    furi_check(context);
+    furi_assert(context);
     SubGhzProtocolDecoderKIA* instance = context;
     return subghz_protocol_blocks_get_hash_data(
         &instance->decoder, (instance->decoder.decode_count_bit / 8) + 1);
@@ -699,45 +538,40 @@ SubGhzProtocolStatus subghz_protocol_decoder_kia_serialize(
     void* context,
     FlipperFormat* flipper_format,
     SubGhzRadioPreset* preset) {
-    furi_check(context);
+    furi_assert(context);
     SubGhzProtocolDecoderKIA* instance = context;
-
-    subghz_protocol_kia_check_remote_controller(&instance->generic);
-
-    instance->generic.data_count_bit = 61;
-    SubGhzProtocolStatus ret =
-        subghz_block_generic_serialize(&instance->generic, flipper_format, preset);
-
-    if(ret == SubGhzProtocolStatusOk) {
-        flipper_format_write_uint32(flipper_format, "Serial", &instance->generic.serial, 1);
-        uint32_t temp = instance->generic.btn;
-        flipper_format_write_uint32(flipper_format, "Btn", &temp, 1);
-        flipper_format_write_uint32(flipper_format, "Cnt", &instance->generic.cnt, 1);
-        uint32_t crc_temp = instance->generic.data & 0xFF;
-        flipper_format_write_uint32(flipper_format, "CRC", &crc_temp, 1);
-    }
-
-    return ret;
+    return subghz_block_generic_serialize(&instance->generic, flipper_format, preset);
 }
 
 SubGhzProtocolStatus
     subghz_protocol_decoder_kia_deserialize(void* context, FlipperFormat* flipper_format) {
-    furi_check(context);
+    furi_assert(context);
     SubGhzProtocolDecoderKIA* instance = context;
-    return subghz_block_generic_deserialize_check_count_bit(
-        &instance->generic, flipper_format, subghz_protocol_kia_const.min_count_bit_for_found);
+    
+    SubGhzProtocolStatus ret = subghz_block_generic_deserialize(&instance->generic, flipper_format);
+    
+    if(ret == SubGhzProtocolStatusOk) {
+        if(instance->generic.data_count_bit < subghz_protocol_kia_const.min_count_bit_for_found) {
+            ret = SubGhzProtocolStatusErrorParserBitCount;
+        }
+    }
+    
+    return ret;
+}
+
+static const char* subghz_protocol_kia_get_name_button(uint8_t btn) {
+    const char* name_btn[5] = {"Unknown", "Lock", "Unlock", "Trunk", "Horn"};
+    return name_btn[btn < 5 ? btn : 0];
 }
 
 void subghz_protocol_decoder_kia_get_string(void* context, FuriString* output) {
-    furi_check(context);
+    furi_assert(context);
     SubGhzProtocolDecoderKIA* instance = context;
 
     subghz_protocol_kia_check_remote_controller(&instance->generic);
-    subghz_custom_btn_set_original(instance->generic.btn);
-    subghz_custom_btn_set_max(4);
     uint32_t code_found_hi = instance->generic.data >> 32;
     uint32_t code_found_lo = instance->generic.data & 0x00000000ffffffff;
-
+    
     uint8_t received_crc = instance->generic.data & 0xFF;
     uint8_t calculated_crc = kia_calculate_crc(instance->generic.data);
     bool crc_valid = (received_crc == calculated_crc);
@@ -746,15 +580,18 @@ void subghz_protocol_decoder_kia_get_string(void* context, FuriString* output) {
         output,
         "%s %dbit\r\n"
         "Key:%08lX%08lX\r\n"
-        "Sn:%07lX Btn:[%s] Cnt:%04lX\r\n"
-        "CRC:%02X %s\r\n",
+        "Sn:%07lX  Cnt:%04lX\r\n"
+        "Btn:%02X:[%s]\r\n"
+        "CRC:%02X %s",
         instance->generic.protocol_name,
         instance->generic.data_count_bit,
         code_found_hi,
         code_found_lo,
         instance->generic.serial,
-        kia_v0_btn_name(kia_v0_get_btn_code()),
         instance->generic.cnt,
+        instance->generic.btn,
+        subghz_protocol_kia_get_name_button(instance->generic.btn),
         received_crc,
         crc_valid ? "(OK)" : "(FAIL)");
 }
+
