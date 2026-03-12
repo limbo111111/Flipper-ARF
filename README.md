@@ -16,7 +16,6 @@ This project may incorporate, adapt, or build upon **other open-source projects*
 - [Supported Systems](#supported-systems)
 - [How to Build](#how-to-build)
 - [Project Scope](#project-scope)
-- [Implemented Protocols](#implemented-protocols)
 - [To Do / Planned Features](#to-do--planned-features)
 - [Design Philosophy](#design-philosophy)
 - [Research Direction](#research-direction)
