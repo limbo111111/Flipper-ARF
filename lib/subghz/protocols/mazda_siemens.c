@@ -156,11 +156,6 @@ static uint8_t mazda_byte_parity(uint8_t val) {
     return val & 1;
 }
 
-/**
- * XOR deobfuscation + bit deinterleave (RX path).
- * Matches Pandora sub_132F0 @ 0x132F0.
- * Must be applied AFTER buffer shift, BEFORE checksum validation.
- */
 static void mazda_xor_deobfuscate(uint8_t* data) {
     uint8_t parity = mazda_byte_parity(data[7]);
 

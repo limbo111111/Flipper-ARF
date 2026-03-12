@@ -10,7 +10,7 @@
 #include <lib/subghz/blocks/math.h>
 #include <flipper_format/flipper_format.h>
 
-#define SUBGHZ_PROTOCOL_PORSCHE_CAYENNE_NAME "PorscheCayenne"
+#define SUBGHZ_PROTOCOL_PORSCHE_CAYENNE_NAME "VW/Porsche/Tuareg"
 
 extern const SubGhzProtocol subghz_protocol_porsche_cayenne;
 

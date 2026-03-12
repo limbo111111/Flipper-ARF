@@ -3,12 +3,6 @@
 
 #define TAG "PorscheCayenneProtocol"
 
-// =============================================================================
-// TIMING CONSTANTS
-// Derived from Pandora PIC18 firmware sub_ROM_14384 / sub_ROM_EB4A analysis.
-// Short=842 delay units ≈ 1680 µs, Long=1684 units ≈ 3370 µs, Gap=2966 ≈ 5930 µs
-// =============================================================================
-
 static const SubGhzBlockConst subghz_protocol_porsche_cayenne_const = {
     .te_short = 1680,  // bit-0 LOW duration (also bit-1 HIGH duration)
     .te_long  = 3370,  // bit-1 LOW duration (also bit-0 HIGH duration, preamble half-period)
@@ -23,10 +17,8 @@ static const SubGhzBlockConst subghz_protocol_porsche_cayenne_const = {
 #define PC_UPLOAD_SIZE 1300 // 4 frames × (73*2 + 2 + 64*2) + margin
 
 // =============================================================================
-// CIPHER — encryption_rotate_heavy (Pandora PIC18 firmware @ 0x140E8)
-//
 // Implements the 24-bit rotating-register VAG rolling-code cipher used by
-// Porsche Cayenne / VW Touareg / Audi (menu indices 10, 22, 23, 24, 28).
+// Porsche Cayenne / VW Touareg / Audi 
 //
 // Arguments:
 //   serial24   – 24-bit serial number (bits 23:0)
@@ -477,7 +469,6 @@ static uint8_t porsche_cayenne_get_btn_code(void) {
 }
 
 static void porsche_cayenne_build_upload(SubGhzProtocolEncoderPorscheCayenne* instance) {
-    // Burst sequence from Pandora firmware § 7:
     //   Frame 0: frame_type=0b010, counter+1
     //   Frame 1: frame_type=0b001, counter+2
     //   Frame 2: frame_type=0b100, counter+3

@@ -37,7 +37,7 @@ const SubGhzProtocol* const subghz_protocol_registry_items[] = {
     &subghz_protocol_beninca_arc,   //&subghz_protocol_jarolift,
     &subghz_protocol_vag,          &subghz_protocol_porsche_cayenne,  &subghz_protocol_ford_v0,
     &subghz_protocol_psa,
-    &subghz_protocol_fiat_v0,       &subghz_protocol_fiat_mystery,
+    &subghz_protocol_fiat_v0,       &subghz_protocol_fiat_marelli,
     &subghz_protocol_subaru, &subghz_protocol_mazda_siemens,
     &subghz_protocol_kia_v0,       &subghz_protocol_kia_v1,
     &subghz_protocol_kia_v2,       &subghz_protocol_kia_v3_v4,

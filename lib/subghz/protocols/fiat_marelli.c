@@ -1,8 +1,8 @@
-#include "fiat_mystery.h"
+#include "fiat_marelli.h"
 #include <inttypes.h>
 #include <lib/toolbox/manchester_decoder.h>
 
-#define TAG "FiatMystery"
+#define TAG "FiatMarelli"
 
 //   Suspected Magneti Marelli BSI keyfob protocol
 //   Found on: Fiat Panda (and possibly other Fiat/Lancia/Alfa ~2003-2012)
@@ -19,20 +19,20 @@
 //     Bytes 0-3: Fixed ID / Serial (32 bits)
 //     Byte 4:    Button (upper nibble) | Type (lower nibble, always 0x2)
 //     Bytes 5-10: Rolling/encrypted code (48 bits)
-#define FIAT_MYSTERY_PREAMBLE_MIN  200  // Min preamble pulses (100 pairs)
-#define FIAT_MYSTERY_GAP_MIN       2500 // Gap detection threshold (us)
-#define FIAT_MYSTERY_SYNC_MIN      1500 // Sync pulse minimum (us)
-#define FIAT_MYSTERY_SYNC_MAX      2600 // Sync pulse maximum (us)
-#define FIAT_MYSTERY_MAX_DATA_BITS 104  // Max data bits to collect (13 bytes)
+#define FIAT_MARELLI_PREAMBLE_MIN  200  // Min preamble pulses (100 pairs)
+#define FIAT_MARELLI_GAP_MIN       2500 // Gap detection threshold (us)
+#define FIAT_MARELLI_SYNC_MIN      1500 // Sync pulse minimum (us)
+#define FIAT_MARELLI_SYNC_MAX      2600 // Sync pulse maximum (us)
+#define FIAT_MARELLI_MAX_DATA_BITS 104  // Max data bits to collect (13 bytes)
 
-static const SubGhzBlockConst subghz_protocol_fiat_mystery_const = {
+static const SubGhzBlockConst subghz_protocol_fiat_marelli_const = {
     .te_short = 260,
     .te_long = 520,
     .te_delta = 80,
     .min_count_bit_for_found = 80,
 };
 
-struct SubGhzProtocolDecoderFiatMystery {
+struct SubGhzProtocolDecoderFiatMarelli {
     SubGhzProtocolDecoderBase base;
     SubGhzBlockDecoder decoder;
     SubGhzBlockGeneric generic;
@@ -45,85 +45,85 @@ struct SubGhzProtocolDecoderFiatMystery {
     uint32_t te_last;
 };
 
-struct SubGhzProtocolEncoderFiatMystery {
+struct SubGhzProtocolEncoderFiatMarelli {
     SubGhzProtocolEncoderBase base;
     SubGhzProtocolBlockEncoder encoder;
     SubGhzBlockGeneric generic;
 };
 
 typedef enum {
-    FiatMysteryDecoderStepReset = 0,
-    FiatMysteryDecoderStepPreamble = 1,
-    FiatMysteryDecoderStepSync = 2,
-    FiatMysteryDecoderStepData = 3,
-} FiatMysteryDecoderStep;
+    FiatMarelliDecoderStepReset = 0,
+    FiatMarelliDecoderStepPreamble = 1,
+    FiatMarelliDecoderStepSync = 2,
+    FiatMarelliDecoderStepData = 3,
+} FiatMarelliDecoderStep;
 
 // ============================================================================
 // PROTOCOL INTERFACE DEFINITIONS
 // ============================================================================
 
-const SubGhzProtocolDecoder subghz_protocol_fiat_mystery_decoder = {
-    .alloc = subghz_protocol_decoder_fiat_mystery_alloc,
-    .free = subghz_protocol_decoder_fiat_mystery_free,
-    .feed = subghz_protocol_decoder_fiat_mystery_feed,
-    .reset = subghz_protocol_decoder_fiat_mystery_reset,
-    .get_hash_data = subghz_protocol_decoder_fiat_mystery_get_hash_data,
-    .serialize = subghz_protocol_decoder_fiat_mystery_serialize,
-    .deserialize = subghz_protocol_decoder_fiat_mystery_deserialize,
-    .get_string = subghz_protocol_decoder_fiat_mystery_get_string,
+const SubGhzProtocolDecoder subghz_protocol_fiat_marelli_decoder = {
+    .alloc = subghz_protocol_decoder_fiat_marelli_alloc,
+    .free = subghz_protocol_decoder_fiat_marelli_free,
+    .feed = subghz_protocol_decoder_fiat_marelli_feed,
+    .reset = subghz_protocol_decoder_fiat_marelli_reset,
+    .get_hash_data = subghz_protocol_decoder_fiat_marelli_get_hash_data,
+    .serialize = subghz_protocol_decoder_fiat_marelli_serialize,
+    .deserialize = subghz_protocol_decoder_fiat_marelli_deserialize,
+    .get_string = subghz_protocol_decoder_fiat_marelli_get_string,
 };
 
-const SubGhzProtocolEncoder subghz_protocol_fiat_mystery_encoder = {
-    .alloc = subghz_protocol_encoder_fiat_mystery_alloc,
-    .free = subghz_protocol_encoder_fiat_mystery_free,
-    .deserialize = subghz_protocol_encoder_fiat_mystery_deserialize,
-    .stop = subghz_protocol_encoder_fiat_mystery_stop,
-    .yield = subghz_protocol_encoder_fiat_mystery_yield,
+const SubGhzProtocolEncoder subghz_protocol_fiat_marelli_encoder = {
+    .alloc = subghz_protocol_encoder_fiat_marelli_alloc,
+    .free = subghz_protocol_encoder_fiat_marelli_free,
+    .deserialize = subghz_protocol_encoder_fiat_marelli_deserialize,
+    .stop = subghz_protocol_encoder_fiat_marelli_stop,
+    .yield = subghz_protocol_encoder_fiat_marelli_yield,
 };
 
-const SubGhzProtocol subghz_protocol_fiat_mystery = {
-    .name = FIAT_MYSTERY_PROTOCOL_NAME,
+const SubGhzProtocol subghz_protocol_fiat_marelli = {
+    .name = FIAT_MARELLI_PROTOCOL_NAME,
     .type = SubGhzProtocolTypeDynamic,
     .flag = SubGhzProtocolFlag_433 | SubGhzProtocolFlag_FM | SubGhzProtocolFlag_Decodable |
             SubGhzProtocolFlag_Load | SubGhzProtocolFlag_Save,
-    .decoder = &subghz_protocol_fiat_mystery_decoder,
-    .encoder = &subghz_protocol_fiat_mystery_encoder,
+    .decoder = &subghz_protocol_fiat_marelli_decoder,
+    .encoder = &subghz_protocol_fiat_marelli_encoder,
 };
 
 // ============================================================================
 // ENCODER STUBS (decode-only protocol)
 // ============================================================================
 
-void* subghz_protocol_encoder_fiat_mystery_alloc(SubGhzEnvironment* environment) {
+void* subghz_protocol_encoder_fiat_marelli_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
-    SubGhzProtocolEncoderFiatMystery* instance = calloc(1, sizeof(SubGhzProtocolEncoderFiatMystery));
+    SubGhzProtocolEncoderFiatMarelli* instance = calloc(1, sizeof(SubGhzProtocolEncoderFiatMarelli));
     furi_check(instance);
-    instance->base.protocol = &subghz_protocol_fiat_mystery;
+    instance->base.protocol = &subghz_protocol_fiat_marelli;
     instance->generic.protocol_name = instance->base.protocol->name;
     instance->encoder.is_running = false;
     return instance;
 }
 
-void subghz_protocol_encoder_fiat_mystery_free(void* context) {
+void subghz_protocol_encoder_fiat_marelli_free(void* context) {
     furi_check(context);
-    SubGhzProtocolEncoderFiatMystery* instance = context;
+    SubGhzProtocolEncoderFiatMarelli* instance = context;
     free(instance);
 }
 
 SubGhzProtocolStatus
-    subghz_protocol_encoder_fiat_mystery_deserialize(void* context, FlipperFormat* flipper_format) {
+    subghz_protocol_encoder_fiat_marelli_deserialize(void* context, FlipperFormat* flipper_format) {
     UNUSED(context);
     UNUSED(flipper_format);
     return SubGhzProtocolStatusError; 
 }
 
-void subghz_protocol_encoder_fiat_mystery_stop(void* context) {
+void subghz_protocol_encoder_fiat_marelli_stop(void* context) {
     furi_check(context);
-    SubGhzProtocolEncoderFiatMystery* instance = context;
+    SubGhzProtocolEncoderFiatMarelli* instance = context;
     instance->encoder.is_running = false;
 }
 
-LevelDuration subghz_protocol_encoder_fiat_mystery_yield(void* context) {
+LevelDuration subghz_protocol_encoder_fiat_marelli_yield(void* context) {
     UNUSED(context);
     return level_duration_reset();
 }
@@ -133,7 +133,7 @@ LevelDuration subghz_protocol_encoder_fiat_mystery_yield(void* context) {
 // ============================================================================
 
 // Helper: rebuild raw_data[] from generic.data + extra_data
-static void fiat_mystery_rebuild_raw_data(SubGhzProtocolDecoderFiatMystery* instance) {
+static void fiat_marelli_rebuild_raw_data(SubGhzProtocolDecoderFiatMarelli* instance) {
     memset(instance->raw_data, 0, sizeof(instance->raw_data));
 
     // First 64 bits from generic.data
@@ -156,26 +156,26 @@ static void fiat_mystery_rebuild_raw_data(SubGhzProtocolDecoderFiatMystery* inst
     instance->bit_count = instance->generic.data_count_bit;
 }
 
-void* subghz_protocol_decoder_fiat_mystery_alloc(SubGhzEnvironment* environment) {
+void* subghz_protocol_decoder_fiat_marelli_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
-    SubGhzProtocolDecoderFiatMystery* instance =
-        calloc(1, sizeof(SubGhzProtocolDecoderFiatMystery));
+    SubGhzProtocolDecoderFiatMarelli* instance =
+        calloc(1, sizeof(SubGhzProtocolDecoderFiatMarelli));
     furi_check(instance);
-    instance->base.protocol = &subghz_protocol_fiat_mystery;
+    instance->base.protocol = &subghz_protocol_fiat_marelli;
     instance->generic.protocol_name = instance->base.protocol->name;
     return instance;
 }
 
-void subghz_protocol_decoder_fiat_mystery_free(void* context) {
+void subghz_protocol_decoder_fiat_marelli_free(void* context) {
     furi_check(context);
-    SubGhzProtocolDecoderFiatMystery* instance = context;
+    SubGhzProtocolDecoderFiatMarelli* instance = context;
     free(instance);
 }
 
-void subghz_protocol_decoder_fiat_mystery_reset(void* context) {
+void subghz_protocol_decoder_fiat_marelli_reset(void* context) {
     furi_check(context);
-    SubGhzProtocolDecoderFiatMystery* instance = context;
-    instance->decoder_state = FiatMysteryDecoderStepReset;
+    SubGhzProtocolDecoderFiatMarelli* instance = context;
+    instance->decoder_state = FiatMarelliDecoderStepReset;
     instance->preamble_count = 0;
     instance->bit_count = 0;
     instance->extra_data = 0;
@@ -185,49 +185,49 @@ void subghz_protocol_decoder_fiat_mystery_reset(void* context) {
     instance->manchester_state = ManchesterStateMid1;
 }
 
-void subghz_protocol_decoder_fiat_mystery_feed(void* context, bool level, uint32_t duration) {
+void subghz_protocol_decoder_fiat_marelli_feed(void* context, bool level, uint32_t duration) {
     furi_check(context);
-    SubGhzProtocolDecoderFiatMystery* instance = context;
-    uint32_t te_short = (uint32_t)subghz_protocol_fiat_mystery_const.te_short;
-    uint32_t te_long = (uint32_t)subghz_protocol_fiat_mystery_const.te_long;
-    uint32_t te_delta = (uint32_t)subghz_protocol_fiat_mystery_const.te_delta;
+    SubGhzProtocolDecoderFiatMarelli* instance = context;
+    uint32_t te_short = (uint32_t)subghz_protocol_fiat_marelli_const.te_short;
+    uint32_t te_long = (uint32_t)subghz_protocol_fiat_marelli_const.te_long;
+    uint32_t te_delta = (uint32_t)subghz_protocol_fiat_marelli_const.te_delta;
     uint32_t diff;
 
     switch(instance->decoder_state) {
-    case FiatMysteryDecoderStepReset:
+    case FiatMarelliDecoderStepReset:
         // Wait for first short HIGH pulse to start preamble
         if(!level) return;
         diff = (duration > te_short) ? (duration - te_short) : (te_short - duration);
         if(diff < te_delta) {
-            instance->decoder_state = FiatMysteryDecoderStepPreamble;
+            instance->decoder_state = FiatMarelliDecoderStepPreamble;
             instance->preamble_count = 1;
             instance->te_last = duration;
         }
         break;
 
-    case FiatMysteryDecoderStepPreamble:
+    case FiatMarelliDecoderStepPreamble:
         diff = (duration > te_short) ? (duration - te_short) : (te_short - duration);
 
         if(diff < te_delta) {
             // Short pulse (HIGH or LOW)  preamble continues
             instance->preamble_count++;
             instance->te_last = duration;
-        } else if(!level && duration > FIAT_MYSTERY_GAP_MIN) {
+        } else if(!level && duration > FIAT_MARELLI_GAP_MIN) {
             // Long LOW  potential gap after preamble
-            if(instance->preamble_count >= FIAT_MYSTERY_PREAMBLE_MIN) {
-                instance->decoder_state = FiatMysteryDecoderStepSync;
+            if(instance->preamble_count >= FIAT_MARELLI_PREAMBLE_MIN) {
+                instance->decoder_state = FiatMarelliDecoderStepSync;
                 instance->te_last = duration;
             } else {
-                instance->decoder_state = FiatMysteryDecoderStepReset;
+                instance->decoder_state = FiatMarelliDecoderStepReset;
             }
         } else {
-            instance->decoder_state = FiatMysteryDecoderStepReset;
+            instance->decoder_state = FiatMarelliDecoderStepReset;
         }
         break;
 
-    case FiatMysteryDecoderStepSync:
+    case FiatMarelliDecoderStepSync:
         // Expect sync HIGH pulse ~2065us after the gap
-        if(level && duration >= FIAT_MYSTERY_SYNC_MIN && duration <= FIAT_MYSTERY_SYNC_MAX) {
+        if(level && duration >= FIAT_MARELLI_SYNC_MIN && duration <= FIAT_MARELLI_SYNC_MAX) {
             // Sync detected  prepare for Manchester data
             instance->bit_count = 0;
             instance->extra_data = 0;
@@ -238,14 +238,14 @@ void subghz_protocol_decoder_fiat_mystery_feed(void* context, bool level, uint32
                 ManchesterEventReset,
                 &instance->manchester_state,
                 NULL);
-            instance->decoder_state = FiatMysteryDecoderStepData;
+            instance->decoder_state = FiatMarelliDecoderStepData;
             instance->te_last = duration;
         } else {
-            instance->decoder_state = FiatMysteryDecoderStepReset;
+            instance->decoder_state = FiatMarelliDecoderStepReset;
         }
         break;
 
-    case FiatMysteryDecoderStepData: {
+    case FiatMarelliDecoderStepData: {
         ManchesterEvent event = ManchesterEventReset;
         bool frame_complete = false;
 
@@ -269,7 +269,7 @@ void subghz_protocol_decoder_fiat_mystery_feed(void* context, bool level, uint32
                    &data_bit)) {
                 uint32_t new_bit = data_bit ? 1 : 0;
 
-                if(instance->bit_count < FIAT_MYSTERY_MAX_DATA_BITS) {
+                if(instance->bit_count < FIAT_MARELLI_MAX_DATA_BITS) {
                     uint8_t byte_idx = instance->bit_count / 8;
                     uint8_t bit_pos = 7 - (instance->bit_count % 8);
                     if(new_bit) {
@@ -285,15 +285,15 @@ void subghz_protocol_decoder_fiat_mystery_feed(void* context, bool level, uint32
 
                 instance->bit_count++;
 
-                if(instance->bit_count >= FIAT_MYSTERY_MAX_DATA_BITS) {
+                if(instance->bit_count >= FIAT_MARELLI_MAX_DATA_BITS) {
                     frame_complete = true;
                 }
             }
         } else {
-            if(instance->bit_count >= subghz_protocol_fiat_mystery_const.min_count_bit_for_found) {
+            if(instance->bit_count >= subghz_protocol_fiat_marelli_const.min_count_bit_for_found) {
                 frame_complete = true;
             } else {
-                instance->decoder_state = FiatMysteryDecoderStepReset;
+                instance->decoder_state = FiatMarelliDecoderStepReset;
             }
         }
 
@@ -335,7 +335,7 @@ void subghz_protocol_decoder_fiat_mystery_feed(void* context, bool level, uint32
                 instance->base.callback(&instance->base, instance->base.context);
             }
 
-            instance->decoder_state = FiatMysteryDecoderStepReset;
+            instance->decoder_state = FiatMarelliDecoderStepReset;
         }
 
         instance->te_last = duration;
@@ -344,9 +344,9 @@ void subghz_protocol_decoder_fiat_mystery_feed(void* context, bool level, uint32
     }
 }
 
-uint8_t subghz_protocol_decoder_fiat_mystery_get_hash_data(void* context) {
+uint8_t subghz_protocol_decoder_fiat_marelli_get_hash_data(void* context) {
     furi_check(context);
-    SubGhzProtocolDecoderFiatMystery* instance = context;
+    SubGhzProtocolDecoderFiatMarelli* instance = context;
     SubGhzBlockDecoder decoder = {
         .decode_data = instance->generic.data,
         .decode_count_bit =
@@ -355,12 +355,12 @@ uint8_t subghz_protocol_decoder_fiat_mystery_get_hash_data(void* context) {
     return subghz_protocol_blocks_get_hash_data(&decoder, (decoder.decode_count_bit / 8) + 1);
 }
 
-SubGhzProtocolStatus subghz_protocol_decoder_fiat_mystery_serialize(
+SubGhzProtocolStatus subghz_protocol_decoder_fiat_marelli_serialize(
     void* context,
     FlipperFormat* flipper_format,
     SubGhzRadioPreset* preset) {
     furi_check(context);
-    SubGhzProtocolDecoderFiatMystery* instance = context;
+    SubGhzProtocolDecoderFiatMarelli* instance = context;
 
     SubGhzProtocolStatus ret =
         subghz_block_generic_serialize(&instance->generic, flipper_format, preset);
@@ -379,11 +379,11 @@ SubGhzProtocolStatus subghz_protocol_decoder_fiat_mystery_serialize(
     return ret;
 }
 
-SubGhzProtocolStatus subghz_protocol_decoder_fiat_mystery_deserialize(
+SubGhzProtocolStatus subghz_protocol_decoder_fiat_marelli_deserialize(
     void* context,
     FlipperFormat* flipper_format) {
     furi_check(context);
-    SubGhzProtocolDecoderFiatMystery* instance = context;
+    SubGhzProtocolDecoderFiatMarelli* instance = context;
 
     SubGhzProtocolStatus ret =
         subghz_block_generic_deserialize(&instance->generic, flipper_format);
@@ -394,13 +394,13 @@ SubGhzProtocolStatus subghz_protocol_decoder_fiat_mystery_deserialize(
             instance->extra_data = extra;
         }
 
-        fiat_mystery_rebuild_raw_data(instance);
+        fiat_marelli_rebuild_raw_data(instance);
     }
 
     return ret;
 }
 
-static const char* fiat_mystery_button_name(uint8_t btn) {
+static const char* fiat_marelli_button_name(uint8_t btn) {
     switch(btn) {
     case 0x2:
         return "Btn A";
@@ -411,9 +411,9 @@ static const char* fiat_mystery_button_name(uint8_t btn) {
     }
 }
 
-void subghz_protocol_decoder_fiat_mystery_get_string(void* context, FuriString* output) {
+void subghz_protocol_decoder_fiat_marelli_get_string(void* context, FuriString* output) {
     furi_check(context);
-    SubGhzProtocolDecoderFiatMystery* instance = context;
+    SubGhzProtocolDecoderFiatMarelli* instance = context;
 
     uint8_t total_bytes = (instance->bit_count + 7) / 8;
     if(total_bytes > 13) total_bytes = 13;
@@ -427,7 +427,7 @@ void subghz_protocol_decoder_fiat_mystery_get_string(void* context, FuriString* 
         instance->generic.protocol_name,
         instance->bit_count,
         instance->generic.serial,
-        fiat_mystery_button_name(instance->generic.btn),
+        fiat_marelli_button_name(instance->generic.btn),
         instance->generic.btn,
         instance->raw_data[7],
         instance->raw_data[8],
