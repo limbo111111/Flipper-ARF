@@ -17,6 +17,7 @@ jobs:
 
       - name: Build firmware
         run: |
+          export DIST_SUFFIX=Flipper-ARF
           chmod +x fbt
           ./fbt COMPACT=1 DEBUG=0 updater_package
 
