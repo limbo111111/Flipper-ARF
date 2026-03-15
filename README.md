@@ -49,7 +49,7 @@ This project may incorporate, adapt, or build upon **other open-source projects*
 | PSA (Peugeot/Citroën/DS) | PSA GROUP | 433 MHz | AM/FM | Yes | Yes | Yes |
 | Ford | Ford V0 | 315/433 MHz | AM | Yes | Yes | Yes |
 | Fiat | Fiat SpA | 433 MHz | AM | Yes | Yes | Yes |
-| Fiat | Fiat Marelli | 433 MHz | AM | No | Yes | No |
+| Fiat | Fiat Marelli/Delphi | 433 MHz | AM | No | Yes | No |
 | Subaru | Subaru | 433 MHz | AM | Yes | Yes | No |
 | Mazda | Siemens (5WK49365D) | 315/433 MHz | FM | Yes | Yes | Yes |
 | Kia/Hyundai | Kia V0 | 433 MHz | FM | Yes | Yes | Yes |
