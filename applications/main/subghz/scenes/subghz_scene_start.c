@@ -55,6 +55,12 @@ void subghz_scene_start_on_enter(void* context) {
         SubmenuIndexKeeloqKeys,
         subghz_scene_start_submenu_callback,
         subghz);
+    submenu_add_item(
+        subghz->submenu,
+        "KeeLoq BF (2 Signals)",
+        SubmenuIndexKeeloqBf2,
+        subghz_scene_start_submenu_callback,
+        subghz);
     submenu_set_selected_item(
         subghz->submenu, scene_manager_get_scene_state(subghz->scene_manager, SubGhzSceneStart));
 
@@ -111,6 +117,11 @@ bool subghz_scene_start_on_event(void* context, SceneManagerEvent event) {
             scene_manager_set_scene_state(
                 subghz->scene_manager, SubGhzSceneStart, SubmenuIndexKeeloqKeys);
             scene_manager_next_scene(subghz->scene_manager, SubGhzSceneKeeloqKeys);
+            return true;
+        } else if(event.event == SubmenuIndexKeeloqBf2) {
+            scene_manager_set_scene_state(
+                subghz->scene_manager, SubGhzSceneStart, SubmenuIndexKeeloqBf2);
+            scene_manager_next_scene(subghz->scene_manager, SubGhzSceneKeeloqBf2);
             return true;
         }
     }

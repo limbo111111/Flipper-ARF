@@ -95,6 +95,11 @@ SubGhz* subghz_alloc(bool alloc_for_tx_only) {
 
     subghz->keeloq_keys_manager = NULL;
 
+    subghz->keeloq_bf2.sig1_loaded = false;
+    subghz->keeloq_bf2.sig2_loaded = false;
+    subghz->keeloq_bf2.sig1_path = furi_string_alloc();
+    subghz->keeloq_bf2.sig2_path = furi_string_alloc();
+
     subghz->file_path = furi_string_alloc();
     subghz->file_path_tmp = furi_string_alloc();
 
@@ -363,7 +368,9 @@ void subghz_free(SubGhz* subghz, bool alloc_for_tx_only) {
     furi_string_free(subghz->file_path);
     furi_string_free(subghz->file_path_tmp);
 
-    // KeeLoq key manager (may still be live if app exited from within the edit scene)
+    furi_string_free(subghz->keeloq_bf2.sig1_path);
+    furi_string_free(subghz->keeloq_bf2.sig2_path);
+
     if(subghz->keeloq_keys_manager) {
         subghz_keeloq_keys_free(subghz->keeloq_keys_manager);
         subghz->keeloq_keys_manager = NULL;

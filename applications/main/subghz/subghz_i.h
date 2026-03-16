@@ -104,13 +104,24 @@ struct SubGhz {
     // KeeLoq key management
     SubGhzKeeloqKeysManager* keeloq_keys_manager;
     struct {
-        uint8_t key_bytes[8]; // ByteInput result
-        char name[65];        // TextInput result
-        uint16_t type;        // selected learning type 1..8
-        bool is_new;          // true = add, false = edit
-        size_t edit_index;    // valid when is_new == false
-        uint8_t edit_step;    // 0 = key, 1 = name, 2 = type
+        uint8_t key_bytes[8];
+        char name[65];
+        uint16_t type;
+        bool is_new;
+        size_t edit_index;
+        uint8_t edit_step;
     } keeloq_edit;
+
+    struct {
+        uint32_t fix;
+        uint32_t hop1;
+        uint32_t hop2;
+        uint32_t serial;
+        bool sig1_loaded;
+        bool sig2_loaded;
+        FuriString* sig1_path;
+        FuriString* sig2_path;
+    } keeloq_bf2;
 };
 
 void subghz_blink_start(SubGhz* subghz);

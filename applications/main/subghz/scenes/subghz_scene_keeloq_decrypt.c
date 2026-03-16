@@ -25,6 +25,8 @@ typedef struct {
     uint8_t btn;
     uint16_t disc;
 
+    uint32_t hop2;
+
     uint64_t recovered_mfkey;
     uint16_t recovered_type;
 
@@ -115,7 +117,7 @@ static bool kl_ble_start_offload(KlDecryptCtx* ctx) {
     req[1] = 0;
     memcpy(req + 2, &ctx->fix, 4);
     memcpy(req + 6, &ctx->hop, 4);
-    memset(req + 10, 0, 4);
+    memcpy(req + 10, &ctx->hop2, 4);
     memcpy(req + 14, &ctx->serial, 4);
     bt_custom_data_tx(bt, req, sizeof(req));
 
@@ -154,6 +156,7 @@ void subghz_scene_keeloq_decrypt_on_enter(void* context) {
     ctx->serial = ctx->fix & 0x0FFFFFFF;
     ctx->btn = ctx->fix >> 28;
     ctx->disc = ctx->serial & 0x3FF;
+    ctx->hop2 = subghz->keeloq_bf2.sig2_loaded ? subghz->keeloq_bf2.hop2 : 0;
 
     scene_manager_set_scene_state(
         subghz->scene_manager, SubGhzSceneKeeloqDecrypt, (uint32_t)(uintptr_t)ctx);
@@ -188,6 +191,8 @@ bool subghz_scene_keeloq_decrypt_on_event(void* context, SceneManagerEvent event
     if(event.type == SceneManagerEventTypeCustom) {
         if(event.event == KL_DECRYPT_EVENT_DONE) {
             kl_ble_cleanup(ctx);
+            subghz->keeloq_bf2.sig1_loaded = false;
+            subghz->keeloq_bf2.sig2_loaded = false;
 
             if(ctx->success) {
                 subghz_save_protocol_to_file(
