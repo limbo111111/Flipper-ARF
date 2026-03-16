@@ -41,11 +41,9 @@ static void kl_ble_data_received(uint8_t* data, uint16_t size, void* context) {
         memcpy(&keys_per_sec, data + 6, 4);
 
         uint32_t elapsed_sec = (furi_get_tick() - ctx->start_tick) / 1000;
-        uint32_t remaining =
-            (keys_tested < (uint32_t)(KL_TOTAL_KEYS & 0xFFFFFFFF)) ?
-            ((uint32_t)(KL_TOTAL_KEYS & 0xFFFFFFFF) - keys_tested) : 0;
+        uint32_t remaining = (keys_tested > 0) ? (0xFFFFFFFFU - keys_tested) : 0xFFFFFFFFU;
         uint32_t eta_sec = (keys_per_sec > 0) ? (remaining / keys_per_sec) : 0;
-        uint8_t pct = (uint8_t)((uint64_t)keys_tested * 100 / KL_TOTAL_KEYS);
+        uint8_t pct = (uint8_t)((uint64_t)keys_tested * 100 / 0xFFFFFFFFULL);
 
         subghz_view_keeloq_decrypt_update_stats(
             ctx->subghz->subghz_keeloq_decrypt, pct, keys_tested, keys_per_sec, elapsed_sec, eta_sec);
