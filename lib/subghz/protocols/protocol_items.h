@@ -55,6 +55,7 @@
 #include "elplast.h"
 #include "treadmill37.h"
 #include "beninca_arc.h"
+#include "keyfinder.h"
 #include "jarolift.h"
 #include "vag.h"
 #include "porsche_cayenne.h"
