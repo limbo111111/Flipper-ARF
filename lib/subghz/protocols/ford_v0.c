@@ -88,8 +88,7 @@ static void decode_ford_v0(
     uint16_t key2,
     uint32_t* serial,
     uint8_t* button,
-    uint32_t* count,
-    uint8_t* bs_magic);
+    uint32_t* count);
 static void encode_ford_v0(
     uint8_t header_byte,
     uint32_t serial,
@@ -122,7 +121,6 @@ const SubGhzProtocolEncoder subghz_protocol_ford_v0_encoder = {
     .yield = subghz_protocol_encoder_ford_v0_yield,
 };
 
-
 const SubGhzProtocol subghz_protocol_ford_v0 = {
     .name = FORD_PROTOCOL_V0_NAME,
     .type = SubGhzProtocolTypeDynamic,
@@ -139,7 +137,8 @@ const SubGhzProtocol subghz_protocol_ford_v0 = {
 static uint8_t ford_v0_calculate_bs_from_buf(uint8_t* buf) {
     // BS = sum of bytes 1..7 of the pre-XOR buffer
     uint8_t checksum = 0;
-    for(int i = 1; i <= 7; i++) checksum += buf[i];
+    for(int i = 1; i <= 7; i++)
+        checksum += buf[i];
     return checksum;
 }
 // =============================================================================
@@ -207,8 +206,7 @@ static void decode_ford_v0(
     uint16_t key2,
     uint32_t* serial,
     uint8_t* button,
-    uint32_t* count,
-    uint8_t* bs_magic) {
+    uint32_t* count) {
     uint8_t buf[13] = {0};
 
     for(int i = 0; i < 8; ++i) {
@@ -219,7 +217,7 @@ static void decode_ford_v0(
     buf[9] = (uint8_t)(key2 & 0xFF);
 
     uint8_t tmp = buf[8];
-    uint8_t bs = tmp;
+    //uint8_t bs = tmp;             //KEPT FOR CLARITY
     uint8_t parity = 0;
     uint8_t parity_any = (tmp != 0);
     while(tmp) {
@@ -261,9 +259,6 @@ static void decode_ford_v0(
     *button = (buf[5] >> 4) & 0x0F;
 
     *count = ((buf[5] & 0x0F) << 16) | (buf[6] << 8) | buf[7];
-
-    // BS is checksum of bytes 1..7 (pre-XOR), stored for verification only
-    *bs_magic = bs; // kept for compatibility, not used in encode
 }
 
 // =============================================================================
@@ -361,10 +356,10 @@ static void encode_ford_v0(
 static uint8_t subghz_protocol_ford_v0_get_btn_code(void) {
     uint8_t custom_btn = subghz_custom_btn_get();
     uint8_t original_btn = subghz_custom_btn_get_original();
-    if(custom_btn == SUBGHZ_CUSTOM_BTN_OK)    return original_btn;
-    if(custom_btn == SUBGHZ_CUSTOM_BTN_UP)    return 0x01; // Lock
-    if(custom_btn == SUBGHZ_CUSTOM_BTN_DOWN)  return 0x02; // Unlock
-    if(custom_btn == SUBGHZ_CUSTOM_BTN_LEFT)  return 0x04; // Boot/Trunk
+    if(custom_btn == SUBGHZ_CUSTOM_BTN_OK) return original_btn;
+    if(custom_btn == SUBGHZ_CUSTOM_BTN_UP) return 0x01; // Lock
+    if(custom_btn == SUBGHZ_CUSTOM_BTN_DOWN) return 0x02; // Unlock
+    if(custom_btn == SUBGHZ_CUSTOM_BTN_LEFT) return 0x04; // Boot/Trunk
     if(custom_btn == SUBGHZ_CUSTOM_BTN_RIGHT) return 0x04; // Boot/Trunk
     return original_btn;
 }
@@ -388,7 +383,6 @@ void* subghz_protocol_encoder_ford_v0_alloc(SubGhzEnvironment* environment) {
     instance->button = 0;
     instance->count = 0;
     instance->bs = 0;
-    instance->bs_magic = 0;
 
     FURI_LOG_I(TAG, "Encoder allocated");
     return instance;
@@ -586,14 +580,6 @@ SubGhzProtocolStatus
             break;
         }
         instance->generic.cnt = instance->count;
-
-        flipper_format_rewind(flipper_format);
-        uint32_t bs_magic_temp = 0;
-        if(!flipper_format_read_uint32(flipper_format, "BSMagic", &bs_magic_temp, 1))
-            instance->bs_magic = 0x6F;
-        else
-            instance->bs_magic = (uint8_t)bs_magic_temp;
-
         instance->count = (instance->count + 1) & 0xFFFFF;
         instance->generic.cnt = instance->count;
 
@@ -621,10 +607,16 @@ SubGhzProtocolStatus
         uint8_t calculated_crc = ford_v0_calculate_crc_for_tx(instance->key1, instance->bs);
         instance->key2 = ((uint16_t)instance->bs << 8) | calculated_crc;
 
-        FURI_LOG_I(TAG, "Encoded: Sn=%08lX Btn=%02X Cnt=%05lX BS=%02X CRC=%02X key1=%08lX%08lX",
-            (unsigned long)instance->serial, instance->button,
-            (unsigned long)instance->count, instance->bs, calculated_crc,
-            (unsigned long)(instance->key1 >> 32), (unsigned long)(instance->key1 & 0xFFFFFFFF));
+        FURI_LOG_I(
+            TAG,
+            "Encoded: Sn=%08lX Btn=%02X Cnt=%05lX BS=%02X CRC=%02X key1=%08lX%08lX",
+            (unsigned long)instance->serial,
+            instance->button,
+            (unsigned long)instance->count,
+            instance->bs,
+            calculated_crc,
+            (unsigned long)(instance->key1 >> 32),
+            (unsigned long)(instance->key1 & 0xFFFFFFFF));
 
         flipper_format_rewind(flipper_format);
         if(!flipper_format_read_uint32(
@@ -715,12 +707,7 @@ static bool ford_v0_process_data(SubGhzProtocolDecoderFordV0* instance) {
         uint16_t key2 = ~key2_raw;
 
         decode_ford_v0(
-            instance->key1,
-            key2,
-            &instance->serial,
-            &instance->button,
-            &instance->count,
-            &instance->bs_magic);
+            instance->key1, key2, &instance->serial, &instance->button, &instance->count);
 
         instance->key2 = key2;
         return true;
@@ -759,7 +746,6 @@ void subghz_protocol_decoder_ford_v0_reset(void* context) {
     instance->serial = 0;
     instance->button = 0;
     instance->count = 0;
-    instance->bs_magic = 0;
 }
 
 void subghz_protocol_decoder_ford_v0_feed(void* context, bool level, uint32_t duration) {
@@ -895,9 +881,6 @@ SubGhzProtocolStatus subghz_protocol_decoder_ford_v0_serialize(
         flipper_format_write_uint32(flipper_format, "Btn", &temp, 1);
 
         flipper_format_write_uint32(flipper_format, "Cnt", &instance->count, 1);
-
-        temp = (uint32_t)instance->bs_magic;
-        flipper_format_write_uint32(flipper_format, "BSMagic", &temp, 1);
     }
 
     return ret;
@@ -911,7 +894,9 @@ SubGhzProtocolStatus
     SubGhzProtocolStatus ret = subghz_block_generic_deserialize_check_count_bit(
         &instance->generic, flipper_format, subghz_protocol_ford_v0_const.min_count_bit_for_found);
 
-    FURI_LOG_I(TAG, "Decoder deserialize: generic_ret=%d generic.data=%08lX%08lX",
+    FURI_LOG_I(
+        TAG,
+        "Decoder deserialize: generic_ret=%d generic.data=%08lX%08lX",
         ret,
         (unsigned long)(instance->generic.data >> 32),
         (unsigned long)(instance->generic.data & 0xFFFFFFFF));
@@ -926,7 +911,12 @@ SubGhzProtocolStatus
         flipper_format_read_uint32(flipper_format, "BS", &bs_temp, 1);
         flipper_format_read_uint32(flipper_format, "CRC", &crc_temp, 1);
         instance->key2 = ((bs_temp & 0xFF) << 8) | (crc_temp & 0xFF);
-        FURI_LOG_I(TAG, "Decoder deserialize: BS=0x%02lX CRC=0x%02lX key2=0x%04X", bs_temp, crc_temp, instance->key2);
+        FURI_LOG_I(
+            TAG,
+            "Decoder deserialize: BS=0x%02lX CRC=0x%02lX key2=0x%04X",
+            bs_temp,
+            crc_temp,
+            instance->key2);
 
         flipper_format_read_uint32(flipper_format, "Serial", &instance->serial, 1);
         instance->generic.serial = instance->serial;
@@ -939,18 +929,16 @@ SubGhzProtocolStatus
         flipper_format_read_uint32(flipper_format, "Cnt", &instance->count, 1);
         instance->generic.cnt = instance->count;
 
-        FURI_LOG_I(TAG, "Decoder deserialize: Sn=0x%08lX Btn=0x%02X Cnt=0x%05lX",
+        FURI_LOG_I(
+            TAG,
+            "Decoder deserialize: Sn=0x%08lX Btn=0x%02X Cnt=0x%05lX",
             (unsigned long)instance->serial,
             instance->button,
             (unsigned long)instance->count);
 
-        uint32_t bs_magic_temp = 0;
-        if(flipper_format_read_uint32(flipper_format, "BSMagic", &bs_magic_temp, 1))
-            instance->bs_magic = bs_magic_temp;
-        else
-            instance->bs_magic = 0x6F;
-        FURI_LOG_I(TAG, "Decoder deserialize: BSMagic=0x%02X key1=%08lX%08lX",
-            instance->bs_magic,
+        FURI_LOG_I(
+            TAG,
+            "Decoder deserialize: key1=%08lX%08lX",
             (unsigned long)(instance->key1 >> 32),
             (unsigned long)(instance->key1 & 0xFFFFFFFF));
     }
@@ -998,6 +986,5 @@ void subghz_protocol_decoder_ford_v0_get_string(void* context, FuriString* outpu
         (unsigned long)instance->count,
         (unsigned int)display_btn,
         button_name,
-        crc_ok ? "OK" : "BAD"
-    );
+        crc_ok ? "OK" : "BAD");
 }
