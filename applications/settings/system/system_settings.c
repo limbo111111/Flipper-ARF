@@ -2,6 +2,9 @@
 #include <loader/loader.h>
 #include <lib/toolbox/value_index.h>
 #include <locale/locale.h>
+#include <flipper_format/flipper_format.h>
+#include <power/power_service/power.h>
+#include <applications/services/namechanger/namechanger.h>
 
 const char* const log_level_text[] = {
     "Default",
@@ -208,6 +211,81 @@ static void filename_scheme_changed(VariableItem* item) {
     }
 }
 
+// ---- Device Name --------------------------------------------------------
+
+#define DEVICE_NAME_ITEM_INDEX 11
+
+static bool system_settings_device_name_validator(
+    const char* text,
+    FuriString* error,
+    void* context) {
+    UNUSED(context);
+    for(; *text; ++text) {
+        const char c = *text;
+        if((c < '0' || c > '9') && (c < 'A' || c > 'Z') && (c < 'a' || c > 'z')) {
+            furi_string_printf(error, "Letters and\nnumbers only!");
+            return false;
+        }
+    }
+    return true;
+}
+
+static void system_settings_device_name_callback(void* context) {
+    SystemSettings* app = context;
+
+    // Save name to SD card (same path as namechanger service)
+    FlipperFormat* file = flipper_format_file_alloc(app->storage);
+    bool saved = false;
+    do {
+        if(app->device_name[0] == '\0') {
+            // Empty name -> remove file to restore real name
+            storage_simply_remove(app->storage, NAMECHANGER_PATH);
+            saved = true;
+            break;
+        }
+        if(!flipper_format_file_open_always(file, NAMECHANGER_PATH)) break;
+        if(!flipper_format_write_header_cstr(file, NAMECHANGER_HEADER, NAMECHANGER_VERSION)) break;
+        if(!flipper_format_write_string_cstr(file, "Name", app->device_name)) break;
+        saved = true;
+    } while(false);
+    flipper_format_free(file);
+
+    if(saved) {
+        // Reboot to apply
+        Power* power = furi_record_open(RECORD_POWER);
+        power_reboot(power, PowerBootModeNormal);
+    } else {
+        // Go back silently on failure
+        view_dispatcher_switch_to_view(app->view_dispatcher, SystemSettingsViewVarItemList);
+    }
+}
+
+static void system_settings_enter_callback(void* context, uint32_t index) {
+    SystemSettings* app = context;
+    if(index == DEVICE_NAME_ITEM_INDEX) {
+        text_input_reset(app->text_input);
+        text_input_set_header_text(app->text_input, "Device Name (empty=reset)");
+        text_input_set_validator(
+            app->text_input, system_settings_device_name_validator, NULL);
+        text_input_set_minimum_length(app->text_input, 0);
+        text_input_set_result_callback(
+            app->text_input,
+            system_settings_device_name_callback,
+            app,
+            app->device_name,
+            FURI_HAL_VERSION_ARRAY_NAME_LENGTH,
+            false);
+        view_dispatcher_switch_to_view(app->view_dispatcher, SystemSettingsViewTextInput);
+    }
+}
+
+static uint32_t system_settings_text_input_back(void* context) {
+    UNUSED(context);
+    return SystemSettingsViewVarItemList;
+}
+
+// -------------------------------------------------------------------------
+
 static uint32_t system_settings_exit(void* context) {
     UNUSED(context);
     return VIEW_NONE;
@@ -218,6 +296,7 @@ SystemSettings* system_settings_alloc(void) {
 
     // Load settings
     app->gui = furi_record_open(RECORD_GUI);
+    app->storage = furi_record_open(RECORD_STORAGE);
 
     app->view_dispatcher = view_dispatcher_alloc();
     view_dispatcher_set_event_callback_context(app->view_dispatcher, app);
@@ -314,12 +393,34 @@ SystemSettings* system_settings_alloc(void) {
     variable_item_set_current_value_index(item, value_index);
     variable_item_set_current_value_text(item, filename_scheme[value_index]);
 
+    // Device Name (index = DEVICE_NAME_ITEM_INDEX = 11)
+    const char* current_name = furi_hal_version_get_name_ptr();
+    strlcpy(
+        app->device_name,
+        current_name ? current_name : "",
+        FURI_HAL_VERSION_ARRAY_NAME_LENGTH);
+    item = variable_item_list_add(app->var_item_list, "Device Name", 0, NULL, app);
+    variable_item_set_current_value_text(
+        item, app->device_name[0] != '\0' ? app->device_name : "<default>");
+
+    variable_item_list_set_enter_callback(
+        app->var_item_list, system_settings_enter_callback, app);
+
     view_set_previous_callback(
         variable_item_list_get_view(app->var_item_list), system_settings_exit);
     view_dispatcher_add_view(
         app->view_dispatcher,
         SystemSettingsViewVarItemList,
         variable_item_list_get_view(app->var_item_list));
+
+    // TextInput for device name
+    app->text_input = text_input_alloc();
+    view_set_previous_callback(
+        text_input_get_view(app->text_input), system_settings_text_input_back);
+    view_dispatcher_add_view(
+        app->view_dispatcher,
+        SystemSettingsViewTextInput,
+        text_input_get_view(app->text_input));
 
     view_dispatcher_switch_to_view(app->view_dispatcher, SystemSettingsViewVarItemList);
 
@@ -328,12 +429,16 @@ SystemSettings* system_settings_alloc(void) {
 
 void system_settings_free(SystemSettings* app) {
     furi_assert(app);
+    // TextInput
+    view_dispatcher_remove_view(app->view_dispatcher, SystemSettingsViewTextInput);
+    text_input_free(app->text_input);
     // Variable item list
     view_dispatcher_remove_view(app->view_dispatcher, SystemSettingsViewVarItemList);
     variable_item_list_free(app->var_item_list);
     // View dispatcher
     view_dispatcher_free(app->view_dispatcher);
     // Records
+    furi_record_close(RECORD_STORAGE);
     furi_record_close(RECORD_GUI);
     free(app);
 }
