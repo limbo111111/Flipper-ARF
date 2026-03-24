@@ -62,6 +62,8 @@ This project may incorporate, adapt, or build upon **other open-source projects*
 | Mitsubishi | Mitsubishi V0 | 868 MHz | FM | Yes | Yes | No |
 | Starline | Star Line | 433 MHz | AM | Yes | Yes | No |
 | Scher-Khan | Scher-Khan | 433 MHz | FM | Yes | Yes | No |
+| Scher-Khan | Magic Code PRO1/PRO2 | 433 MHz | FM | Yes | Yes | Yes |
+| Sheriff | Sheriff CFM (ZX-750/930) | 433 MHz | AM | Yes | Yes | No |
 
 ### Gate / Access Protocols
 
