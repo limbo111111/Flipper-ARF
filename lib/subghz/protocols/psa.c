@@ -743,14 +743,6 @@ void subghz_protocol_decoder_psa_feed(void* context, bool level, uint32_t durati
                 }
                 if(end_diff <= 199) {
                     instance->validation_field = (uint16_t)(instance->decode_data_low & 0xFFFF);
-                    if((instance->validation_field & 0xf) != 0xa) {
-                        instance->decode_data_low = 0;
-                        instance->decode_data_high = 0;
-                        instance->decode_count_bit = 0;
-                        new_state = PSADecoderState0;
-                        instance->state = new_state;
-                        return;
-                    }
                     instance->key2_low = instance->decode_data_low;
                     instance->key2_high = instance->decode_data_high;
                     instance->mode_serialize = 1;
@@ -1034,14 +1026,6 @@ void subghz_protocol_decoder_psa_feed(void* context, bool level, uint32_t durati
                 }
 
                 instance->validation_field = (uint16_t)(instance->decode_data_low & 0xFFFF);
-                if((instance->validation_field & 0xf) != 0xa) {
-                    instance->decode_data_low = 0;
-                    instance->decode_data_high = 0;
-                    instance->decode_count_bit = 0;
-                    new_state = PSADecoderState0;
-                    instance->state = new_state;
-                    return;
-                }
                 instance->key2_low = instance->decode_data_low;
                 instance->key2_high = instance->decode_data_high;
                 instance->mode_serialize = 2;
