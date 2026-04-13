@@ -17,7 +17,6 @@ typedef struct {
     FuriString* preset_str;
     FuriString* key_str;
     bool show_button;
-    bool has_custom_btn;
     SubGhzRadioDeviceType device_type;
     FuriString* temp_button_id;
     bool draw_temp_button;
@@ -38,8 +37,7 @@ void subghz_view_transmitter_add_data_to_show(
     const char* key_str,
     const char* frequency_str,
     const char* preset_str,
-    bool show_button,
-    bool has_custom_btn) {
+    bool show_button) {
     furi_assert(subghz_transmitter);
     with_view_model(
         subghz_transmitter->view,
@@ -49,7 +47,6 @@ void subghz_view_transmitter_add_data_to_show(
             furi_string_set(model->frequency_str, frequency_str);
             furi_string_set(model->preset_str, preset_str);
             model->show_button = show_button;
-            model->has_custom_btn = has_custom_btn;
         },
         true);
 }
@@ -63,40 +60,6 @@ void subghz_view_transmitter_set_radio_device_type(
         SubGhzViewTransmitterModel * model,
         { model->device_type = device_type; },
         true);
-}
-
-static void subghz_view_transmitter_button_right(Canvas* canvas, const char* str) {
-    const uint8_t button_height = 12;
-    const uint8_t vertical_offset = 3;
-    const uint8_t horizontal_offset = 1;
-    const uint8_t string_width = canvas_string_width(canvas, str);
-    const Icon* icon = &I_ButtonCenter_7x7;
-    const uint8_t icon_offset = 3;
-    const uint8_t icon_width_with_offset = icon_get_width(icon) + icon_offset;
-    const uint8_t button_width = string_width + horizontal_offset * 2 + icon_width_with_offset;
-
-    const uint8_t x = (canvas_width(canvas) - button_width) / 2 + 40;
-    const uint8_t y = canvas_height(canvas);
-
-    canvas_draw_box(canvas, x, y - button_height, button_width, button_height);
-
-    canvas_draw_line(canvas, x - 1, y, x - 1, y - button_height + 0);
-    canvas_draw_line(canvas, x - 2, y, x - 2, y - button_height + 1);
-    canvas_draw_line(canvas, x - 3, y, x - 3, y - button_height + 2);
-
-    canvas_draw_line(canvas, x + button_width + 0, y, x + button_width + 0, y - button_height + 0);
-    canvas_draw_line(canvas, x + button_width + 1, y, x + button_width + 1, y - button_height + 1);
-    canvas_draw_line(canvas, x + button_width + 2, y, x + button_width + 2, y - button_height + 2);
-
-    canvas_invert_color(canvas);
-    canvas_draw_icon(
-        canvas,
-        x + horizontal_offset,
-        y - button_height + vertical_offset - 1,
-        &I_ButtonCenter_7x7);
-    canvas_draw_str(
-        canvas, x + horizontal_offset + icon_width_with_offset, y - vertical_offset, str);
-    canvas_invert_color(canvas);
 }
 
 void subghz_view_transmitter_draw(Canvas* canvas, SubGhzViewTransmitterModel* model) {
@@ -121,16 +84,11 @@ void subghz_view_transmitter_draw(Canvas* canvas, SubGhzViewTransmitterModel* mo
             62,
             (model->device_type == SubGhzRadioDeviceTypeInternal) ? "R: Int" : "R: Ext");
 
-        if(model->has_custom_btn) {
-            // Draw generic D-Pad layout for multi-button remotes (Option 2)
-            canvas_draw_icon(canvas, 92, 16, &I_ButtonUp_7x4);
-            canvas_draw_icon(canvas, 92, 44, &I_ButtonDown_7x4);
-            canvas_draw_icon(canvas, 71, 29, &I_ButtonLeft_4x7);
-            canvas_draw_icon(canvas, 108, 29, &I_ButtonRight_4x7);
-            canvas_draw_icon(canvas, 91, 28, &I_ButtonCenter_7x7);
-        } else {
-            subghz_view_transmitter_button_right(canvas, "Send");
-        }
+        canvas_draw_icon(canvas, 92, 16, &I_ButtonUp_7x4);
+        canvas_draw_icon(canvas, 92, 44, &I_ButtonDown_7x4);
+        canvas_draw_icon(canvas, 71, 29, &I_ButtonLeft_4x7);
+        canvas_draw_icon(canvas, 108, 29, &I_ButtonRight_4x7);
+        canvas_draw_icon(canvas, 91, 28, &I_ButtonCenter_7x7);
     }
 }
 
