@@ -17,6 +17,7 @@ typedef struct {
     FuriString* preset_str;
     FuriString* key_str;
     bool show_button;
+    bool has_custom_btn;
     SubGhzRadioDeviceType device_type;
     FuriString* temp_button_id;
     bool draw_temp_button;
@@ -37,7 +38,8 @@ void subghz_view_transmitter_add_data_to_show(
     const char* key_str,
     const char* frequency_str,
     const char* preset_str,
-    bool show_button) {
+    bool show_button,
+    bool has_custom_btn) {
     furi_assert(subghz_transmitter);
     with_view_model(
         subghz_transmitter->view,
@@ -47,6 +49,7 @@ void subghz_view_transmitter_add_data_to_show(
             furi_string_set(model->frequency_str, frequency_str);
             furi_string_set(model->preset_str, preset_str);
             model->show_button = show_button;
+            model->has_custom_btn = has_custom_btn;
         },
         true);
 }
@@ -112,13 +115,22 @@ void subghz_view_transmitter_draw(Canvas* canvas, SubGhzViewTransmitterModel* mo
     }
 
     if(model->show_button) {
-        // TODO
         canvas_draw_str(
             canvas,
             58,
             62,
             (model->device_type == SubGhzRadioDeviceTypeInternal) ? "R: Int" : "R: Ext");
-        subghz_view_transmitter_button_right(canvas, "Send");
+
+        if(model->has_custom_btn) {
+            // Draw generic D-Pad layout for multi-button remotes (Option 2)
+            canvas_draw_icon(canvas, 92, 16, &I_ButtonUp_7x4);
+            canvas_draw_icon(canvas, 92, 44, &I_ButtonDown_7x4);
+            canvas_draw_icon(canvas, 71, 29, &I_ButtonLeft_4x7);
+            canvas_draw_icon(canvas, 108, 29, &I_ButtonRight_4x7);
+            canvas_draw_icon(canvas, 91, 28, &I_ButtonCenter_7x7);
+        } else {
+            subghz_view_transmitter_button_right(canvas, "Send");
+        }
     }
 }
 
