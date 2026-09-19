@@ -3,7 +3,7 @@ name: Build Dev Firmware
 on:
   push:
     branches:
-      - main
+      - d4rks1d3-test
 
 permissions:
   contents: write
